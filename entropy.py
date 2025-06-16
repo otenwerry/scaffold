@@ -36,7 +36,14 @@ def entropy_bits(text: str):
 
 
 if __name__ == "__main__":
-    sample = "The federal government will continue to hold Mahmoud Khalil, SIPA ’24, in an Immigration and Customs Enforcement facility in Louisiana, arguing that a Wednesday court order declaring Khalil’s detainment unlawful “does not interfere” with the government’s “authority to detain Khalil on other grounds,” a Department of Justice letter reads. U.S. District Judge Michael Farbiarz set a 1:30 p.m. Friday deadline for the federal government to appeal the court ruling that Khalil cannot be detained under the rarely invoked legal provision cited by Secretary of State Marco Rubio in Khalil’s detention. The government sent a letter to Farbiarz, outlining its argument after the 1:30 p.m. deadline had elapsed."
+    #if you want line breaks, you need to format it this way 
+    # rather than with triple quotes, for token reasons
+    sample = ( 
+        "Machines are embedded in art so deeply that we don’t even really notice them. Most writers don’t think it’s a perversion of their work to type it on a computer. Even the most conservative likely doesn’t deactivate the spell check built into Google Docs or Microsoft Word. But that same writer probably rebukes ChatGPT and regards AI-produced writing as second class, in hypotheticals and when they can spot it. They complain with their friends and at conferences about how it makes bad content and defiles the craft and yet is slowly but surely displacing creators in their industry. Fundamentally, a lot of artists don’t regard AI-generated art as art. Some instances of engineering in art are acceptable, though; they might defend the honor of an artist who uses a tool like Procreate to create animations and drawings. They admire the daring of a readymade sculpture."
+    )
     total_bits, per_token_bits = entropy_bits(sample)
+    print(sample)
+    print(f"Character count: {len(sample)}")
+    print(f"Total tokens: {total_bits / per_token_bits}")
     print(f"Total bits: {total_bits:.2f}")
     print(f"Bits per token: {per_token_bits:.2f}")
