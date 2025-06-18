@@ -1,37 +1,57 @@
 import math
 import torch
 from transformers import GPT2LMHeadModel, GPT2TokenizerFast
-#why fast?
 
-#don't know what this is
+#downloads and initializes tokenizer for gpt2 model,
+#which can split raw text into numerical token ids
 tokenizer = GPT2TokenizerFast.from_pretrained('gpt2')
+
+#downloads and loads weights of gpt2 model, which
+#can map token id sequences to logits
+#WHAT ARE LOGITS?
 model = GPT2LMHeadModel.from_pretrained('gpt2')
+#puts model in evaluation mode
+#WHAT IS THIS?
 model.eval()
 
-#helper to get the probability of a token given the history
+#decorator to disable gradient computation to optimize performance
 @torch.no_grad()
+#helper to get the probability of the next token given the history
 def q_prob(token_id: int, history_ids: torch.Tensor) -> float:
-    #token_id is the id of the token to predict
-    #history_ids is a list (1xT tensor) of the history of tokens
-    #return the probability of the token
-
+    #feeds the history to gpt2 model to get logits
+    #AGAIN WHAT ARE LOGITS?
     outputs = model(history_ids)
     logits = outputs.logits #shape (1, T, V)
+    #gets the logits for the last token in the sequence
     last_logits = logits[0, -1, :] #shape (V,)
+    #applies softmax to get probabilities
+    #IS SOFTMAX(LOGITS) = PROBABILITY? want to understand the math here
     log_probs = torch.log_softmax(last_logits, dim=-1)
+    #returns the probabilities of the next token,
+    #doing exp to cancel the log
     return float(torch.exp(log_probs[token_id]))
 
 #tokenizes the text then computes the entropy bits
 def entropy_bits(text: str):
+    #tokenizes text string into token ids
     enc = tokenizer(text, return_tensors='pt')
     ids = enc.input_ids[0] #Shape (N,)
+    #iterate through the tokens and add the entropy of each,
+    #starting at 1 because the first token has no history
     total_bits = 0.0
     for i in range(1,len(ids)):
+        #takes the first i tokens and adds a dimension
         history_ids = ids[:i].unsqueeze(0) #Shape (1,i)
+        #gets the probability of the next token
         p_next = q_prob(int(ids[i]), history_ids)
+        #if the probability is 0, raise an error (WHY? not only less than 0 but also 0?)
         if p_next <= 0:
             raise ValueError(f"Invalid probability: {tokenizer.decode(ids[i])}")
+        #add entropy of this next token: I(x) = -log_2(p(x))
+        #I think i'm confused on the formula here, thought it was the sum of p(x)I(x) not just I(x)?
         total_bits += -math.log2(p_next)
+    #returns total entropy and entropy per token
+    #we subtract 1 for the average because we didn't compute entropy of first token
     return total_bits, total_bits/(len(ids) - 1) #why -1?
 
 
