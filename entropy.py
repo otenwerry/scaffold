@@ -7,11 +7,10 @@ from transformers import GPT2LMHeadModel, GPT2TokenizerFast
 tokenizer = GPT2TokenizerFast.from_pretrained('gpt2')
 
 #downloads and loads weights of gpt2 model, which
-#can map token id sequences to logits
-#WHAT ARE LOGITS?
+#can map token id sequences to logits.
+#logits are the unnormalized scores for each token
 model = GPT2LMHeadModel.from_pretrained('gpt2')
-#puts model in evaluation mode
-#WHAT IS THIS?
+#puts model in evaluation mode, i.e. not training mode
 model.eval()
 
 #decorator to disable gradient computation to optimize performance
@@ -24,8 +23,7 @@ def q_prob(token_id: int, history_ids: torch.Tensor) -> float:
     logits = outputs.logits #shape (1, T, V)
     #gets the logits for the last token in the sequence
     last_logits = logits[0, -1, :] #shape (V,)
-    #applies softmax to get probabilities
-    #IS SOFTMAX(LOGITS) = PROBABILITY? want to understand the math here
+    #softmax(logits) = probabilities. we do log probabilities for numerical reasons.
     log_probs = torch.log_softmax(last_logits, dim=-1)
     #returns the probabilities of the next token,
     #doing exp to cancel the log
@@ -44,7 +42,8 @@ def entropy_bits(text: str):
         history_ids = ids[:i].unsqueeze(0) #Shape (1,i)
         #gets the probability of the next token
         p_next = q_prob(int(ids[i]), history_ids)
-        #if the probability is 0, raise an error (WHY? not only less than 0 but also 0?)
+        #if probability is 0, the log is -inf, which is bad; and probabilities can't be < 0.
+        #softmax returns nonzero probabilities anyway.
         if p_next <= 0:
             raise ValueError(f"Invalid probability: {tokenizer.decode(ids[i])}")
         #add entropy of this next token: I(x) = -log_2(p(x))
@@ -52,7 +51,7 @@ def entropy_bits(text: str):
         total_bits += -math.log2(p_next)
     #returns total entropy and entropy per token
     #we subtract 1 for the average because we didn't compute entropy of first token
-    return total_bits, total_bits/(len(ids) - 1) #why -1?
+    return total_bits, total_bits/(len(ids) - 1)
 
 
 if __name__ == "__main__":
