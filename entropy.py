@@ -19,7 +19,6 @@ model.eval()
 #helper to get the probability of the next token given the history
 def q_prob(token_id: int, history_ids: torch.Tensor) -> float:
     #feeds the history to gpt2 model to get logits
-    #AGAIN WHAT ARE LOGITS?
     outputs = model(history_ids)
     logits = outputs.logits #shape (1, T, V)
     #gets the logits for the last token in the sequence
