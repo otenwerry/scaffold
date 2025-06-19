@@ -1,5 +1,6 @@
 import math
 import torch
+import sys
 from transformers import GPT2LMHeadModel, GPT2TokenizerFast
 
 #downloads and initializes tokenizer for gpt2 model,
@@ -57,9 +58,22 @@ def entropy_bits(text: str):
 if __name__ == "__main__":
     #if you want line breaks, you need to format it this way 
     # rather than with triple quotes, for token reasons
+    
     sample = ( 
         "Machines are embedded in art so deeply that we don’t even really notice them. Most writers don’t think it’s a perversion of their work to type it on a computer. Even the most conservative likely doesn’t deactivate the spell check built into Google Docs or Microsoft Word. But that same writer probably rebukes ChatGPT and regards AI-produced writing as second class, in hypotheticals and when they can spot it. They complain with their friends and at conferences about how it makes bad content and defiles the craft and yet is slowly but surely displacing creators in their industry. Fundamentally, a lot of artists don’t regard AI-generated art as art. Some instances of engineering in art are acceptable, though; they might defend the honor of an artist who uses a tool like Procreate to create animations and drawings. They admire the daring of a readymade sculpture."
     )
+
+    '''if len(sys.argv) > 1:
+        # If text is passed as command line argument
+        sample = sys.argv[1]
+    else:
+        # Read from stdin
+        sample = sys.stdin.read().strip()
+    
+    if not sample:
+        print("Error: No text provided")
+        sys.exit(1)'''
+    sample = sys.stdin.read().strip()
     total_bits, per_token_bits = entropy_bits(sample)
     print(sample)
     print(f"Character count: {len(sample)}")
