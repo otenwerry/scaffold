@@ -88,7 +88,7 @@ export default function Home() {
             width={16}
             height={16}
           />
-          What is going on?
+          What is going on
         </a>
       </footer>
     </div>
