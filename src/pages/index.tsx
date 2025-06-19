@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { supabase } from '../lib/supabase'
+import React,{ useState } from 'react'
+import { supabase } from '../../lib/supabase'
 
 export default async function Home() {
   // … auth logic from above …
