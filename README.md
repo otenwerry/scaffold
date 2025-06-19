@@ -1,24 +1,75 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Text Entropy Analyzer
 
-## Getting Started
+A web application that analyzes text entropy using GPT-2 language model and provides simplified versions with reduced entropy.
 
-First, run the development server:
+## Features
+
+- **Text Entropy Analysis**: Calculate bits per token using GPT-2 language model
+- **Text Simplification**: Generate less wordy versions of input text
+- **Comparison**: Compare original vs simplified text entropy
+- **Data Storage**: Store all analyses in Supabase database
+- **Real-time Processing**: Process text through Python backend
+
+## Setup
+
+### 1. Install Dependencies
+
+```bash
+# Install Node.js dependencies
+npm install
+
+# Install Python dependencies
+pip install -r requirements.txt
+```
+
+### 2. Configure Environment Variables
+
+Create a `.env.local` file in the root directory:
+
+```env
+NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+```
+
+### 3. Set up Supabase Database
+
+Run the SQL commands in `supabase_setup.sql` in your Supabase SQL editor to create the required table.
+
+### 4. Start the Development Server
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000) to view the application.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## How It Works
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+1. **Input**: User enters text in the textarea
+2. **Processing**: Text is sent to the API which:
+   - Processes original text through `entropy.py` using GPT-2
+   - Generates a simplified version by removing common words
+   - Processes simplified text through `entropy.py`
+   - Stores results in Supabase
+3. **Output**: Displays both original and simplified text with their entropy metrics
+
+## API Endpoints
+
+- `POST /api/compress` - Process text and return entropy analysis
+
+## Database Schema
+
+The `text_compressions` table stores:
+- Original text and its entropy metrics
+- Simplified text and its entropy metrics
+- Timestamp of analysis
+
+## Technologies Used
+
+- **Frontend**: Next.js, React, TypeScript, Tailwind CSS
+- **Backend**: Next.js API routes, Python (torch, transformers)
+- **Database**: Supabase (PostgreSQL)
+- **ML Model**: GPT-2 for entropy calculation
 
 ## Learn More
 
