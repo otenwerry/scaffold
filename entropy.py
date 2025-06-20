@@ -7,8 +7,8 @@ from transformers import GPT2LMHeadModel, GPT2TokenizerFast
 #which can split raw text into numerical token ids
 tokenizer = GPT2TokenizerFast.from_pretrained('gpt2')
 
-#downloads and loads weights of gpt2 model, which
-#can map token id sequences to logits.
+#downloads and loads weights of gpt2 model,
+#which can map token id sequences to logits.
 #logits are the unnormalized scores for each token
 model = GPT2LMHeadModel.from_pretrained('gpt2')
 #puts model in evaluation mode, i.e. not training mode
@@ -47,7 +47,6 @@ def entropy_bits(text: str):
         if p_next <= 0:
             raise ValueError(f"Invalid probability: {tokenizer.decode(ids[i])}")
         #add entropy of this next token: I(x) = -log_2(p(x))
-        #I think i'm confused on the formula here, thought it was the sum of p(x)I(x) not just I(x)?
         total_bits += -math.log2(p_next)
     #returns total entropy and entropy per token
     #we subtract 1 for the average because we didn't compute entropy of first token
