@@ -30,8 +30,11 @@ def q_prob(token_id: int, history_ids: torch.Tensor) -> float:
     #doing exp to cancel the log
     return float(torch.exp(log_probs[token_id]))
 
-bos_id = tokenizer.bos_token_id
+#lookup table for background probabilities of each token
+bos_id = tokenizer.bos_token_id #beginning of sentence token id
 with torch.no_grad():
+    #get the logits for the first token after the beginning of sentence token,
+    #i.e. the first token in the sentence, and softmax to get probabilities
     out = model(torch.tensor([[bos_id]]))
     logits = out.logits[0, 1, :]
     p_bg_dist = torch.softmax(logits, dim=-1)
@@ -66,6 +69,7 @@ def info_content(text: str):
 
 #computes the bits of information content in a string of english text,
 #corrected for the background probability of each token
+#(aka negative PMI?)
 def info_content_background_corrected(text: str):
     enc = tokenizer(text, return_tensors='pt')
     ids = enc.input_ids[0]
@@ -73,7 +77,7 @@ def info_content_background_corrected(text: str):
     for i in range(1,len(ids)):
         history_ids = ids[:i].unsqueeze(0)
         p_next = q_prob(int(ids[i]), history_ids)
-        p_background = ?
+        p_background = float(p_bg_dist[int(ids[i])])
         if p_next <= 0:
             raise ValueError(f"Invalid probability: {tokenizer.decode(ids[i])}")
         total_bits += -math.log2(p_next) + math.log2(p_background)
