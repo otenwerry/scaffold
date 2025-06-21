@@ -14,6 +14,8 @@ model = GPT2LMHeadModel.from_pretrained('gpt2')
 #puts model in evaluation mode, i.e. not training mode
 model.eval()
 
+#HELPER FUNCTIONS
+
 @torch.no_grad() #decorator to disable gradient computation to optimize performance
 #computesthe probabilities of the next token given the history
 def q_prob(token_id: int, history_ids: torch.Tensor) -> float:
@@ -27,6 +29,17 @@ def q_prob(token_id: int, history_ids: torch.Tensor) -> float:
     #returns the probabilities of the next token,
     #doing exp to cancel the log
     return float(torch.exp(log_probs[token_id]))
+
+bos_id = tokenizer.bos_token_id
+with torch.no_grad():
+    out = model(torch.tensor([[bos_id]]))
+    logits = out.logits[0, 1, :]
+    p_bg_dist = torch.softmax(logits, dim=-1)
+
+
+
+
+#MAIN FUNCTIONS
 
 #computes the bits of information content in a string of english text
 def info_content(text: str):
@@ -51,6 +64,20 @@ def info_content(text: str):
     #we subtract 1 for the average because we didn't compute bits of first token
     return total_bits, total_bits/(len(ids) - 1)
 
+#computes the bits of information content in a string of english text,
+#corrected for the background probability of each token
+def info_content_background_corrected(text: str):
+    enc = tokenizer(text, return_tensors='pt')
+    ids = enc.input_ids[0]
+    total_bits = 0.0
+    for i in range(1,len(ids)):
+        history_ids = ids[:i].unsqueeze(0)
+        p_next = q_prob(int(ids[i]), history_ids)
+        p_background = ?
+        if p_next <= 0:
+            raise ValueError(f"Invalid probability: {tokenizer.decode(ids[i])}")
+        total_bits += -math.log2(p_next) + math.log2(p_background)
+    return total_bits, total_bits/(len(ids) - 1)
 
 
 
