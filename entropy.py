@@ -36,7 +36,7 @@ with torch.no_grad():
     #get the logits for the first token after the beginning of sentence token,
     #i.e. the first token in the sentence, and softmax to get probabilities
     out = model(torch.tensor([[bos_id]]))
-    logits = out.logits[0, 1, :]
+    logits = out.logits[0, -1, :]
     p_bg_dist = torch.softmax(logits, dim=-1)
 
 
@@ -111,3 +111,5 @@ if __name__ == "__main__":
     print(f"Total tokens: {total_bits / per_token_bits}")
     print(f"Total bits: {total_bits:.2f}")
     print(f"Bits per token: {per_token_bits:.2f}")
+    print(f"Background corrected total bits: {info_content_background_corrected(sample)[0]:.2f}")
+    print(f"Background corrected bits per token: {info_content_background_corrected(sample)[1]:.2f}")
