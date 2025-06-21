@@ -14,9 +14,8 @@ model = GPT2LMHeadModel.from_pretrained('gpt2')
 #puts model in evaluation mode, i.e. not training mode
 model.eval()
 
-#decorator to disable gradient computation to optimize performance
-@torch.no_grad()
-#helper to get the probability of the next token given the history
+@torch.no_grad() #decorator to disable gradient computation to optimize performance
+#computesthe probabilities of the next token given the history
 def q_prob(token_id: int, history_ids: torch.Tensor) -> float:
     #feeds the history to gpt2 model to get logits
     outputs = model(history_ids)
@@ -29,7 +28,7 @@ def q_prob(token_id: int, history_ids: torch.Tensor) -> float:
     #doing exp to cancel the log
     return float(torch.exp(log_probs[token_id]))
 
-#tokenizes the text then computes the entropy bits
+#computes the bits of information content in a string of english text
 def entropy_bits(text: str):
     #tokenizes text string into token ids
     enc = tokenizer(text, return_tensors='pt')
@@ -46,11 +45,14 @@ def entropy_bits(text: str):
         #softmax returns nonzero probabilities anyway.
         if p_next <= 0:
             raise ValueError(f"Invalid probability: {tokenizer.decode(ids[i])}")
-        #add entropy of this next token: I(x) = -log_2(p(x))
+        #add bits of this next token: I(x) = -log_2(p(x))
         total_bits += -math.log2(p_next)
-    #returns total entropy and entropy per token
-    #we subtract 1 for the average because we didn't compute entropy of first token
+    #returns total bits and bits per token
+    #we subtract 1 for the average because we didn't compute bits of first token
     return total_bits, total_bits/(len(ids) - 1)
+
+
+
 
 
 if __name__ == "__main__":
