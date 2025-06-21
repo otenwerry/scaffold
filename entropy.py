@@ -29,7 +29,7 @@ def q_prob(token_id: int, history_ids: torch.Tensor) -> float:
     return float(torch.exp(log_probs[token_id]))
 
 #computes the bits of information content in a string of english text
-def entropy_bits(text: str):
+def info_content(text: str):
     #tokenizes text string into token ids
     enc = tokenizer(text, return_tensors='pt')
     ids = enc.input_ids[0] #Shape (N,)
@@ -74,7 +74,7 @@ if __name__ == "__main__":
         print("Error: No text provided")
         sys.exit(1)'''
     sample = sys.stdin.read().strip()
-    total_bits, per_token_bits = entropy_bits(sample)
+    total_bits, per_token_bits = info_content(sample)
     print(sample)
     print(f"Character count: {len(sample)}")
     print(f"Total tokens: {total_bits / per_token_bits}")
