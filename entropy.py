@@ -97,7 +97,7 @@ if __name__ == "__main__":
     # rather than with triple quotes, for token reasons
     
     sample = ( 
-        "A lively societal debate rages among the human sciences. The contentious issue is: why are so many people fascinated by zombie fiction?"
+        "There is currently a lively, ongoing controversy among many sociologists and other professionals who study human nature : theories are being spun and arguments are being conducted among them about what it means that so many young people—and older people, for that matter—who live in our society today are so very interested in stories about zombies.?"
     )
     total_bits, per_token_bits = info_content(sample)
     print(sample)
