@@ -14,6 +14,9 @@ model = GPT2LMHeadModel.from_pretrained('gpt2')
 #puts model in evaluation mode, i.e. not training mode
 model.eval()
 
+#beginning of sentence token id
+bos_id = tokenizer.bos_token_id 
+
 #HELPER FUNCTIONS
 
 @torch.no_grad() #decorator to disable gradient computation to optimize performance
@@ -40,8 +43,6 @@ with torch.no_grad():
     p_bg_dist = torch.softmax(logits, dim=-1)
 
 
-
-
 #MAIN FUNCTIONS
 
 #computes the bits of information content in a string of english text
@@ -63,9 +64,10 @@ def info_content(text: str):
             raise ValueError(f"Invalid probability: {tokenizer.decode(ids[i])}")
         #add bits of this next token: I(x) = -log_2(p(x))
         total_bits += -math.log2(p_next)
+        avg_bits = total_bits/(len(ids) - 1)
     #returns total bits and bits per token
     #we subtract 1 for the average because we didn't compute bits of first token
-    return total_bits, total_bits/(len(ids) - 1)
+    return total_bits, avg_bits
 
 #computes the bits of information content in a string of english text,
 #corrected for the background probability of each token
@@ -74,14 +76,18 @@ def info_content_background_corrected(text: str):
     enc = tokenizer(text, return_tensors='pt')
     ids = enc.input_ids[0]
     total_bits = 0.0
+
+    #compute bits of information content like before, 
+    #but subtract the background probability
     for i in range(1,len(ids)):
         history_ids = ids[:i].unsqueeze(0)
         p_next = q_prob(int(ids[i]), history_ids)
-        p_background = float(p_bg_dist[int(ids[i])])
         if p_next <= 0:
             raise ValueError(f"Invalid probability: {tokenizer.decode(ids[i])}")
-        total_bits += -math.log2(p_next) + math.log2(p_background)
-    return total_bits, total_bits/(len(ids) - 1)
+        p_bg = p_bg_dist[int(ids[i])]
+        total_bits += -math.log2(p_next) + math.log2(p_bg)
+        avg_bits = total_bits/(len(ids) - 1)
+    return total_bits, avg_bits
 
 
 
@@ -91,20 +97,8 @@ if __name__ == "__main__":
     # rather than with triple quotes, for token reasons
     
     sample = ( 
-        "Machines are embedded in art so deeply that we don’t even really notice them. Most writers don’t think it’s a perversion of their work to type it on a computer. Even the most conservative likely doesn’t deactivate the spell check built into Google Docs or Microsoft Word. But that same writer probably rebukes ChatGPT and regards AI-produced writing as second class, in hypotheticals and when they can spot it. They complain with their friends and at conferences about how it makes bad content and defiles the craft and yet is slowly but surely displacing creators in their industry. Fundamentally, a lot of artists don’t regard AI-generated art as art. Some instances of engineering in art are acceptable, though; they might defend the honor of an artist who uses a tool like Procreate to create animations and drawings. They admire the daring of a readymade sculpture."
+        "A lively societal debate rages among the human sciences. The contentious issue is: why are so many people fascinated by zombie fiction?"
     )
-
-    '''if len(sys.argv) > 1:
-        # If text is passed as command line argument
-        sample = sys.argv[1]
-    else:
-        # Read from stdin
-        sample = sys.stdin.read().strip()
-    
-    if not sample:
-        print("Error: No text provided")
-        sys.exit(1)'''
-    sample = sys.stdin.read().strip()
     total_bits, per_token_bits = info_content(sample)
     print(sample)
     print(f"Character count: {len(sample)}")
