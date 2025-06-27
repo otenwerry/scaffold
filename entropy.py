@@ -1,7 +1,10 @@
 import math
 import torch
 import sys
-from transformers import GPT2LMHeadModel, GPT2TokenizerFast
+from transformers import GPT2LMHeadModel, GPT2TokenizerFast, pipeline
+from sentence_transformers import SentenceTransformer
+from sklearn.metrics.pairwise import cosine_similarity
+import numpy as np
 
 #downloads and initializes tokenizer for gpt2 model,
 #which can split raw text into numerical token ids
@@ -14,10 +17,11 @@ model = GPT2LMHeadModel.from_pretrained('gpt2')
 #puts model in evaluation mode, i.e. not training mode
 model.eval()
 
+summarizer = pipeline("summarization", model="facebook/bart-large-cnn")
+embedder = SentenceTransformer("all-MiniLM-L6-v2")
+
 #beginning of sentence token id
 bos_id = tokenizer.bos_token_id 
-
-#HELPER FUNCTIONS
 
 @torch.no_grad() #decorator to disable gradient computation to optimize performance
 #computesthe probabilities of the next token given the history
@@ -33,17 +37,6 @@ def q_prob(token_id: int, history_ids: torch.Tensor) -> float:
     #doing exp to cancel the log
     return float(torch.exp(log_probs[token_id]))
 
-#lookup table for background probabilities of each token
-bos_id = tokenizer.bos_token_id #beginning of sentence token id
-with torch.no_grad():
-    #get the logits for the first token after the beginning of sentence token,
-    #i.e. the first token in the sentence, and softmax to get probabilities
-    out = model(torch.tensor([[bos_id]]))
-    logits = out.logits[0, -1, :]
-    p_bg_dist = torch.softmax(logits, dim=-1)
-
-
-#MAIN FUNCTIONS
 
 #computes the bits of information content in a string of english text
 def info_content(text: str):
@@ -68,6 +61,27 @@ def info_content(text: str):
     #returns total bits and bits per token
     #we subtract 1 for the average because we didn't compute bits of first token
     return total_bits, avg_bits
+
+
+#natural language compression
+#we use bart because it's fine tuned for summarization/denoising
+def compress(text: str, max_length_ratio: float):
+    max_length = int(len(text.split()) * max_length_ratio)
+    summary = summarizer(text, max_length=max_length, min_length=10)[0]['summary_text']
+    return summary
+
+
+
+
+
+#lookup table for background probabilities of each token
+bos_id = tokenizer.bos_token_id #beginning of sentence token id
+with torch.no_grad():
+    #get the logits for the first token after the beginning of sentence token,
+    #i.e. the first token in the sentence, and softmax to get probabilities
+    out = model(torch.tensor([[bos_id]]))
+    logits = out.logits[0, -1, :]
+    p_bg_dist = torch.softmax(logits, dim=-1)
 
 #computes the bits of information content in a string of english text,
 #corrected for the background probability of each token
@@ -105,5 +119,8 @@ if __name__ == "__main__":
     print(f"Total tokens: {total_bits / per_token_bits}")
     print(f"Total bits: {total_bits:.2f}")
     print(f"Bits per token: {per_token_bits:.2f}")
-    print(f"Background corrected total bits: {info_content_background_corrected(sample)[0]:.2f}")
-    print(f"Background corrected bits per token: {info_content_background_corrected(sample)[1]:.2f}")
+    compression = compress(sample, 0.8)
+    original_embedding = embedder.encode(sample)
+    compressed_embedding = embedder.encode(compression)
+    print(f"Compressed with bart: {compression}")
+    print(f"Cosine similarity: {cosine_similarity([original_embedding], [compressed_embedding])[0][0]}")
