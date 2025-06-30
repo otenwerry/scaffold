@@ -2,24 +2,41 @@
 import React, { useRef, useEffect, useState } from "react";
 import { supabase } from '@/app/lib/supabaseClient';
 
+interface Entry {
+  content: string;
+  score: number;
+}
+
 export default function Home() {
   const [text, setText] = useState('');
   const [errMsg, setErrMsg] = useState<string|null>(null);
-  const [sentences, setSentences] = useState<string[]>([]);
+  const [sentences, setSentences] =  useState([] as Entry[]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  //const [entries, setEntries] = useState<Entry[]>([]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    // get score from python backend
+    const res = await fetch('../../api/score', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text }),
+    });
+    console.log('Response:', res);
+    if (!res.ok) throw new Error('Scoring failed');
+    const { avg_bits } = await res.json();
+    //const { avg_bits } = (await res.json()) as { avg_bits: number };
+
     const { data, error } = await supabase
       .from('entries2')
-      .insert([{ content: text }]);
+      .insert([{ content: text, entry_score: avg_bits }]);
 
     if (error) {
       setErrMsg(error.message);
     } else {
       setErrMsg(null);
-      setSentences([...sentences, text]);
+      setSentences([...sentences, {content: text, score: avg_bits}]);
       setText('');
       if (textareaRef.current) {
         textareaRef.current.style.height = 'auto';
@@ -69,11 +86,12 @@ export default function Home() {
           <div className="mt-8 text-left">
             <h2 className="text-lg font-semibold mb-2">History:</h2>
             <div className="space-y-2">
-              {sentences.map((sentence, idx) => (
-                <div key={idx} className="p-4 bg-gray-100 rounded border border-gray-200">
-                  {sentence}
-                </div>
-              ))}
+            { sentences.map((s, i) => (
+              <div key={i}>
+                <p>{s.content}</p>
+                <p>Score: {s.score.toFixed(2)}</p>
+              </div>
+            ))}
             </div>
           </div>
         )}
