@@ -12,7 +12,7 @@ model = GPT2LMHeadModel.from_pretrained('gpt2')
 model.eval()
 
 summarizer = T5ForConditionalGeneration.from_pretrained("t5-base")
-summary_tokenizer = T5Tokenizer.from_pretrained("t5-base")
+summary_tokenizer = T5Tokenizer.from_pretrained("t5-base", legacy=True)
 embedder = SentenceTransformer("all-mpnet-base-v2")
 
 #beginning of sentence token id
@@ -57,15 +57,7 @@ def info_content(text: str):
     #we subtract 1 for the average because we didn't compute bits of first token
     return total_bits, avg_bits
 
-
-'''#natural language compression
-#we use bart because it's fine tuned for summarization/denoising
-def compress(text: str, max_length_ratio: float):
-    max_length = int(len(text.split()) * max_length_ratio)
-    summary = summarizer(text, max_length=max_length, min_length=10)[0]['summary_text']
-    return summary
-'''
-
+#natural language compression, using t5
 def compress(text: str, ratio: float):
     target_length = int(len(text.split()) * ratio)
     prompt = f"summarize in {target_length} words: {text}"
@@ -74,6 +66,19 @@ def compress(text: str, ratio: float):
     compressed = summary_tokenizer.decode(outputs[0], skip_special_tokens=True)
     return compressed
 
+def compressibility(text: str, similarity_threshold: float):
+    original_embedding = embedder.encode(text)
+    ratios = np.arange(0.99, 0, -0.01)
+    good_ratios = []
+    for ratio in ratios:
+        compressed = compress(text, ratio)
+        compressed_embedding = embedder.encode(compressed)
+        similarity = cosine_similarity([original_embedding], [compressed_embedding])[0][0]
+        if similarity >= similarity_threshold: #for the comments it would be <=
+            #return round(ratio + 0.01, 2)
+            good_ratios.append(round(ratio, 2))
+    return good_ratios
+    #return 0.0
 
 
 
@@ -123,9 +128,5 @@ if __name__ == "__main__":
     print(f"Total tokens: {total_bits / per_token_bits}")
     print(f"Total bits: {total_bits:.2f}")
     print(f"Bits per token: {per_token_bits:.2f}")
-    for ratio in [0.8, 0.6, 0.4, 0.2]:
-        compression = compress(sample, ratio)
-        original_embedding = embedder.encode(sample)
-        compressed_embedding = embedder.encode(compression)
-        print(f"Compressed with T5: {compression}")
-        print(f"Cosine similarity: {cosine_similarity([original_embedding], [compressed_embedding])[0][0]}")
+    #print(f"Good compressibility ratios: {compressibility(sample, 0.9)}")
+    print(f"Compressed by 0.36: {compress(sample, 0.36)}. with similarity {cosine_similarity([embedder.encode(sample)], [embedder.encode(compress(sample, 0.36))])[0][0]}")
