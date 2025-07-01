@@ -11,10 +11,9 @@ tokenizer = GPT2TokenizerFast.from_pretrained('gpt2')
 model = GPT2LMHeadModel.from_pretrained('gpt2')
 model.eval()
 
-#summarizer = pipeline("summarization", model="facebook/bart-large-cnn")
 summarizer = T5ForConditionalGeneration.from_pretrained("t5-base")
 summary_tokenizer = T5Tokenizer.from_pretrained("t5-base")
-embedder = SentenceTransformer("all-MiniLM-L6-v2")
+embedder = SentenceTransformer("all-mpnet-base-v2")
 
 #beginning of sentence token id
 bos_id = tokenizer.bos_token_id 
@@ -68,8 +67,6 @@ def compress(text: str, max_length_ratio: float):
 '''
 
 def compress(text: str, ratio: float):
-    results = []
-    current_text = text
     target_length = int(len(text.split()) * ratio)
     prompt = f"summarize in {target_length} words: {text}"
     inputs = summary_tokenizer(prompt, return_tensors="pt")
