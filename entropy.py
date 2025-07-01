@@ -2,22 +2,18 @@ import math
 import torch
 import sys
 from transformers import GPT2LMHeadModel, GPT2TokenizerFast, pipeline
+from transformers import T5ForConditionalGeneration, T5Tokenizer
 from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
 import numpy as np
 
-#downloads and initializes tokenizer for gpt2 model,
-#which can split raw text into numerical token ids
 tokenizer = GPT2TokenizerFast.from_pretrained('gpt2')
-
-#downloads and loads weights of gpt2 model,
-#which can map token id sequences to logits.
-#logits are the unnormalized scores for each token
 model = GPT2LMHeadModel.from_pretrained('gpt2')
-#puts model in evaluation mode, i.e. not training mode
 model.eval()
 
-summarizer = pipeline("summarization", model="facebook/bart-large-cnn")
+#summarizer = pipeline("summarization", model="facebook/bart-large-cnn")
+summarizer = T5ForConditionalGeneration.from_pretrained("t5-base")
+summary_tokenizer = T5Tokenizer.from_pretrained("t5-base")
 embedder = SentenceTransformer("all-MiniLM-L6-v2")
 
 #beginning of sentence token id
@@ -63,12 +59,23 @@ def info_content(text: str):
     return total_bits, avg_bits
 
 
-#natural language compression
+'''#natural language compression
 #we use bart because it's fine tuned for summarization/denoising
 def compress(text: str, max_length_ratio: float):
     max_length = int(len(text.split()) * max_length_ratio)
     summary = summarizer(text, max_length=max_length, min_length=10)[0]['summary_text']
     return summary
+'''
+
+def compress(text: str, ratio: float):
+    results = []
+    current_text = text
+    target_length = int(len(text.split()) * ratio)
+    prompt = f"summarize in {target_length} words: {text}"
+    inputs = summary_tokenizer(prompt, return_tensors="pt")
+    outputs = summarizer.generate(inputs.input_ids, max_length=target_length + 10, min_length=10)
+    compressed = summary_tokenizer.decode(outputs[0], skip_special_tokens=True)
+    return compressed
 
 
 
@@ -119,8 +126,9 @@ if __name__ == "__main__":
     print(f"Total tokens: {total_bits / per_token_bits}")
     print(f"Total bits: {total_bits:.2f}")
     print(f"Bits per token: {per_token_bits:.2f}")
-    compression = compress(sample, 0.8)
-    original_embedding = embedder.encode(sample)
-    compressed_embedding = embedder.encode(compression)
-    print(f"Compressed with bart: {compression}")
-    print(f"Cosine similarity: {cosine_similarity([original_embedding], [compressed_embedding])[0][0]}")
+    for ratio in [0.8, 0.6, 0.4, 0.2]:
+        compression = compress(sample, ratio)
+        original_embedding = embedder.encode(sample)
+        compressed_embedding = embedder.encode(compression)
+        print(f"Compressed with T5: {compression}")
+        print(f"Cosine similarity: {cosine_similarity([original_embedding], [compressed_embedding])[0][0]}")
