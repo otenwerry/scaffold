@@ -3,6 +3,8 @@ transformers==4.45.2
 scikit-learn==1.3.2
 sentence-transformers==2.2.2
 sanic==23.9.0
-allennlp==2.14.1
-allennlp-models==2.14.1
-nltk==3.8.1
+allennlp==2.10.1
+allennlp-models==2.10.1
+supabase-py
+nltk
+numpy
