@@ -24,7 +24,7 @@ export default function Home() {
       const data = await res.json();
       wordCount = data.word_count;
     } catch (err: any) {
-      setErrMsg('Error counting words');
+      setErrMsg(err?.message || String(err));
       return;
     }
 
