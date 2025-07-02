@@ -1,5 +1,5 @@
 import json
-from lib.entropy import info_content
+from lib.caroline_entropy import info_content
 
 def handler(request):
     # Only accept POST
