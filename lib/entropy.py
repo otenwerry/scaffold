@@ -1,0 +1,139 @@
+import math
+import torch
+import sys
+import os
+from transformers import GPT2LMHeadModel, GPT2TokenizerFast, pipeline
+from transformers import T5ForConditionalGeneration, T5Tokenizer
+from sentence_transformers import SentenceTransformer
+from sklearn.metrics.pairwise import cosine_similarity
+import numpy as np
+#from openie import StanfordOpenIE
+from allennlp.predictors.predictor import Predictor
+import allennlp_models.tagging
+import glob
+import nltk
+
+#initialize models
+tokenizer = GPT2TokenizerFast.from_pretrained('gpt2')
+model = GPT2LMHeadModel.from_pretrained('gpt2')
+model.eval()
+summarizer = T5ForConditionalGeneration.from_pretrained("t5-base")
+summary_tokenizer = T5Tokenizer.from_pretrained("t5-base", legacy=True)
+embedder = SentenceTransformer("all-mpnet-base-v2")
+#openie = StanfordOpenIE()
+#srl = semantic role labeling
+srl_predictor = Predictor.from_path("https://storage.googleapis.com/allennlp-public-models/structured-prediction-srl-bert.2020.12.15.tar.gz")
+
+#turn off a flag to avoid tokenizer warnings
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
+
+#beginning of sentence token id
+bos_id = tokenizer.bos_token_id 
+
+@torch.no_grad() #decorator to disable gradient computation to optimize performance
+#computesthe probabilities of the next token given the history
+def q_prob(token_id: int, history_ids: torch.Tensor) -> float:
+    #feeds the history to gpt2 model to get logits
+    outputs = model(history_ids)
+    logits = outputs.logits #shape (1, T, V)
+    #gets the logits for the last token in the sequence
+    last_logits = logits[0, -1, :] #shape (V,)
+    #softmax(logits) = probabilities. we do log probabilities for numerical reasons.
+    log_probs = torch.log_softmax(last_logits, dim=-1)
+    #returns the probabilities of the next token,
+    #doing exp to cancel the log
+    return float(torch.exp(log_probs[token_id]))
+
+#computes the bits of information content in a string of english text
+def info_content(text: str):
+    #tokenizes text string into token ids
+    enc = tokenizer(text, return_tensors='pt')
+    ids = enc.input_ids[0] #Shape (N,)
+    #iterate through the tokens and add the entropy of each,
+    #starting at 1 because the first token has no history
+    total_bits = 0.0
+    for i in range(1,len(ids)):
+        #takes the first i tokens and adds a dimension
+        history_ids = ids[:i].unsqueeze(0) #Shape (1,i)
+        #gets the probability of the next token
+        p_next = q_prob(int(ids[i]), history_ids)
+        #if probability is 0, the log is -inf, which is bad; and probabilities can't be < 0.
+        #softmax returns nonzero probabilities anyway.
+        if p_next <= 0:
+            raise ValueError(f"Invalid probability: {tokenizer.decode(ids[i])}")
+        #add bits of this next token: I(x) = -log_2(p(x))
+        total_bits += -math.log2(p_next)
+        avg_bits = total_bits/(len(ids) - 1)
+    #returns total bits and bits per token
+    #we subtract 1 for the average because we didn't compute bits of first token
+    return total_bits, avg_bits
+
+#natural language compression, using t5
+def compress(text: str, ratio: float):
+    target_length = int(len(text.split()) * ratio)
+    prompt = f"summarize in {target_length} words: {text}"
+    inputs = summary_tokenizer(prompt, return_tensors="pt")
+    outputs = summarizer.generate(inputs.input_ids, max_length=target_length + 10, min_length=10)
+    compressed = summary_tokenizer.decode(outputs[0], skip_special_tokens=True)
+    return compressed
+
+def compressibility(text: str, similarity_threshold: float):
+    original_embedding = embedder.encode(text)
+    ratios = np.arange(0.99, 0, -0.01)
+    good_ratios = []
+    for ratio in ratios:
+        compressed = compress(text, ratio)
+        compressed_embedding = embedder.encode(compressed)
+        similarity = cosine_similarity([original_embedding], [compressed_embedding])[0][0]
+        if similarity >= similarity_threshold: #for the comments it would be <=
+            #return round(ratio + 0.01, 2)
+            good_ratios.append(round(ratio, 2))
+    return good_ratios
+    #return 0.0
+
+def extract_propositions_allennlp(text: str):
+    propositions = []
+    sentences = nltk.sent_tokenize(text)
+    for sentence in sentences:
+        result = srl_predictor.predict(sentence=sentence)
+        for verb_dict in result['verbs']:
+            verb = verb_dict['verb']
+            args = {}
+            for tag in verb_dict['tags']:
+                if tag.startswith('B-ARG'):
+                    arg_type = tag[2:]
+                    args[arg_type] = []
+                elif tag.startswith('I-ARG') and args:
+                    pass
+            description = verb_dict['description']
+            prop_parts = description.replace('[', '').replace(']', '').split(':')
+            if len(prop_parts) > 1:
+                propositions.append(tuple(prop_parts))
+    return propositions
+
+def proposition_density(text: str):
+    propositions = extract_propositions_allennlp(text)
+    unique_propositions = set(propositions)
+    density = len(unique_propositions) / len(text.split())
+    return density, list(unique_propositions)
+
+
+if __name__ == "__main__":
+    #cleanup_files()
+    #if you want line breaks, you need to format it this way 
+    # rather than with triple quotes, for token reasons
+    
+    sample = ( 
+        "There is currently a lively, ongoing controversy among many sociologists and other professionals who study human nature : theories are being spun and arguments are being conducted among them about what it means that so many young people—and older people, for that matter—who live in our society today are so very interested in stories about zombies.?"
+    )
+    total_bits, per_token_bits = info_content(sample)
+    print(sample)
+    print(f"Character count: {len(sample)}")
+    print(f"Total tokens: {total_bits / per_token_bits}")
+    print(f"Total bits: {total_bits:.2f}")
+    print(f"Bits per token: {per_token_bits:.2f}")
+    #print(f"Good compressibility ratios: {compressibility(sample, 0.9)}")
+    #print(f"Compressed by 0.36: {compress(sample, 0.36)}. with similarity {cosine_similarity([embedder.encode(sample)], [embedder.encode(compress(sample, 0.36))])[0][0]}")
+    #density, propositions = proposition_density(sample)
+    #print(f"Proposition density: {density} per word. {len(propositions)} propositions, {len(sample.split())} words.")
+    #print(f"Propositions: {propositions}")
