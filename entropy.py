@@ -117,6 +117,31 @@ def proposition_density(text: str):
     density = len(unique_propositions) / len(text.split())
     return density, list(unique_propositions)
 
+
+if __name__ == "__main__":
+    #cleanup_files()
+    #if you want line breaks, you need to format it this way 
+    # rather than with triple quotes, for token reasons
+    
+    sample = ( 
+        "There is currently a lively, ongoing controversy among many sociologists and other professionals who study human nature : theories are being spun and arguments are being conducted among them about what it means that so many young people—and older people, for that matter—who live in our society today are so very interested in stories about zombies.?"
+    )
+    total_bits, per_token_bits = info_content(sample)
+    print(sample)
+    print(f"Character count: {len(sample)}")
+    print(f"Total tokens: {total_bits / per_token_bits}")
+    print(f"Total bits: {total_bits:.2f}")
+    print(f"Bits per token: {per_token_bits:.2f}")
+    #print(f"Good compressibility ratios: {compressibility(sample, 0.9)}")
+    #print(f"Compressed by 0.36: {compress(sample, 0.36)}. with similarity {cosine_similarity([embedder.encode(sample)], [embedder.encode(compress(sample, 0.36))])[0][0]}")
+    #density, propositions = proposition_density(sample)
+    #print(f"Proposition density: {density} per word. {len(propositions)} propositions, {len(sample.split())} words.")
+    #print(f"Propositions: {propositions}")
+
+
+
+
+#old code
 '''
 #lookup table for background probabilities of each token
 bos_id = tokenizer.bos_token_id #beginning of sentence token id
@@ -146,32 +171,11 @@ def info_content_background_corrected(text: str):
         total_bits += -math.log2(p_next) + math.log2(p_bg)
         avg_bits = total_bits/(len(ids) - 1)
     return total_bits, avg_bits
-'''
 
-'''def cleanup_files():
+def cleanup_files():
     for file in glob.glob("corenlp_server-*"):
         try:
             os.remove(file)
         except:
             print(f"Error deleting {file}")
 '''
-
-if __name__ == "__main__":
-    #cleanup_files()
-    #if you want line breaks, you need to format it this way 
-    # rather than with triple quotes, for token reasons
-    
-    sample = ( 
-        "There is currently a lively, ongoing controversy among many sociologists and other professionals who study human nature : theories are being spun and arguments are being conducted among them about what it means that so many young people—and older people, for that matter—who live in our society today are so very interested in stories about zombies.?"
-    )
-    total_bits, per_token_bits = info_content(sample)
-    print(sample)
-    print(f"Character count: {len(sample)}")
-    print(f"Total tokens: {total_bits / per_token_bits}")
-    print(f"Total bits: {total_bits:.2f}")
-    print(f"Bits per token: {per_token_bits:.2f}")
-    #print(f"Good compressibility ratios: {compressibility(sample, 0.9)}")
-    #print(f"Compressed by 0.36: {compress(sample, 0.36)}. with similarity {cosine_similarity([embedder.encode(sample)], [embedder.encode(compress(sample, 0.36))])[0][0]}")
-    density, propositions = proposition_density(sample)
-    print(f"Proposition density: {density} per word. {len(propositions)} propositions, {len(sample.split())} words.")
-    print(f"Propositions: {propositions}")
