@@ -1,87 +1,63 @@
 "use client";
-import { useState, useRef, useEffect } from "react";
-import { supabase } from "@/app/lib/supabaseClient";
-
-// what's an interface?
-interface Entry {
-  content: string;
-  entropy_score: number;
-}
+import React, { useRef, useEffect, useState } from "react";
+import { supabase } from '@/app/lib/supabaseClient';
 
 export default function Home() {
-  const [text, setText] = useState("");
-  const [entries, setEntries] = useState<Entry[]>([]);
+  const [text, setText] = useState('');
   const [errMsg, setErrMsg] = useState<string|null>(null);
+  //const [sentences,setSentences] =useState<string[]>([]);
+  const [history, setHistory] = useState<{ sentence: string; wordCount: number }[]>([]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // 1) Call your Python API to get the score
-    const res = await fetch("/api/compute_entropy", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ content: text }),
-    });
-    const { entropy_score } = await res.json();
+    // Call the word count API
+    let wordCount = 0;
+    try {
+      const res = await fetch('/api/count', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sentence: text }),
+      });
+      if (!res.ok) throw new Error('Failed to count words');
+      const data = await res.json();
+      wordCount = data.word_count;
+    } catch (err: any) {
+      setErrMsg('Error counting words');
+      return;
+    }
 
-    // 2) Insert into Supabase, including the score
-    const { data: insertedRows, error } = await supabase
-      .from("entries2")
-      .insert([{ content: text, entropy_score }])
-      .select("*");
+    const { data, error } = await supabase
+      .from('entries2')
+      .insert([{ content: text }]);
 
     if (error) {
       setErrMsg(error.message);
-      return;
+    } else {
+      setErrMsg(null);
+      setHistory([...history, { sentence: text, wordCount }]);
+      setText('');
+      if (textareaRef.current) {
+        textareaRef.current.style.height = 'auto';
+      }
+      console.log('Saved:', data);
     }
-    if (!insertedRows || insertedRows.length === 0) {
-      setErrMsg("No row returned after insert");
-      return;
-    }
-
-    // 3) Update local history state
-    setEntries((prev) => [...prev, insertedRows[0]]);
-    setText('');
-    setErrMsg(null);
   };
 
+  const adjustHeight = () => {
+    const textarea = textareaRef.current;
+    if (textarea) {
+      textarea.style.height = 'auto';
+      textarea.style.height = textarea.scrollHeight + 'px';
+    }
+  };
+
+  useEffect(() => {
+    adjustHeight();
+  }, []);
+
   return (
-    <div className="min-h-screen flex items-start justify-center p-8 pt-56">
-      <div className="w-full max-w-md text-center">
-        <h1 className="text-4xl font-bold text-gray-900 mb-8 font-sans tracking-tight">
-          Entropy Editor
-        </h1>
-        <form onSubmit={handleSubmit} className="space-y-4">
-      <textarea
-        value={text}
-        onChange={(e) => setText(e.target.value)}
-        className="w-full border rounded p-2"
-        placeholder="Enter text here…"
-      />
-      <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded">
-        Submit
-      </button>
-
-      {errMsg && <p className="text-red-600">{errMsg}</p>}
-
-      <h2 className="mt-6 font-bold">History:</h2>
-      {entries.map((entry, i) => (
-        <div
-          key={i}
-          className="p-4 mb-2 bg-gray-100 rounded border border-gray-200"
-        >
-          <p className="font-medium">{entry.content}</p>
-          <p className="text-sm text-gray-600">
-            {entry.entropy_score.toFixed(2)} bits/token
-          </p>
-        </div>
-      ))}
-    </form>
-      </div>
-    </div>
-  );
-    /*
     <div className="min-h-screen flex items-start justify-center p-8 pt-56">
       <div className="w-full max-w-md text-center">
         <h1 className="text-4xl font-bold text-gray-900 mb-8 font-sans tracking-tight">
@@ -106,13 +82,14 @@ export default function Home() {
             <div className="mt-2 text-red-600 text-sm font-medium">{errMsg}</div>
           )}
         </form>
-        {sentences.length > 0 && (
+        {history.length > 0 && (
           <div className="mt-8 text-left">
             <h2 className="text-lg font-semibold mb-2">History:</h2>
             <div className="space-y-2">
-              {sentences.map((sentence, idx) => (
+              {history.map((entry, idx) => (
                 <div key={idx} className="p-4 bg-gray-100 rounded border border-gray-200">
-                  {sentence}
+                  <div>{entry.sentence}</div>
+                  <div className="text-sm text-gray-600">Words: {entry.wordCount}</div>
                 </div>
               ))}
             </div>
@@ -120,5 +97,5 @@ export default function Home() {
         )}
       </div>
     </div>
-    */
+  );
 }
