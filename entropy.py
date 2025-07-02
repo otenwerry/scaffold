@@ -7,8 +7,11 @@ from transformers import T5ForConditionalGeneration, T5Tokenizer
 from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
 import numpy as np
-from openie import StanfordOpenIE
+#from openie import StanfordOpenIE
+from allennlp.predictors.predictor import Predictor
+import allennlp_models.tagging
 import glob
+import nltk
 
 #initialize models
 tokenizer = GPT2TokenizerFast.from_pretrained('gpt2')
@@ -17,7 +20,9 @@ model.eval()
 summarizer = T5ForConditionalGeneration.from_pretrained("t5-base")
 summary_tokenizer = T5Tokenizer.from_pretrained("t5-base", legacy=True)
 embedder = SentenceTransformer("all-mpnet-base-v2")
-openie = StanfordOpenIE()
+#openie = StanfordOpenIE()
+#srl = semantic role labeling
+srl_predictor = Predictor.from_path("https://storage.googleapis.com/allennlp-public-models/structured-prediction-srl-bert.2020.12.15.tar.gz")
 
 #turn off a flag to avoid tokenizer warnings
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
@@ -86,10 +91,28 @@ def compressibility(text: str, similarity_threshold: float):
     return good_ratios
     #return 0.0
 
-def proposition_density(text: str):
+def extract_propositions_allennlp(text: str):
     propositions = []
-    for triple in openie.annotate(text):
-        propositions.append((triple['subject'], triple['relation'], triple['object']))
+    sentences = nltk.sent_tokenize(text)
+    for sentence in sentences:
+        result = srl_predictor.predict(sentence=sentence)
+        for verb_dict in result['verbs']:
+            verb = verb_dict['verb']
+            args = {}
+            for tag in verb_dict['tags']:
+                if tag.startswith('B-ARG'):
+                    arg_type = tag[2:]
+                    args[arg_type] = []
+                elif tag.startswith('I-ARG') and args:
+                    pass
+            description = verb_dict['description']
+            prop_parts = description.replace('[', '').replace(']', '').split(':')
+            if len(prop_parts) > 1:
+                propositions.append(tuple(prop_parts))
+    return propositions
+
+def proposition_density(text: str):
+    propositions = extract_propositions_allennlp(text)
     unique_propositions = set(propositions)
     density = len(unique_propositions) / len(text.split())
     return density, list(unique_propositions)
@@ -125,15 +148,16 @@ def info_content_background_corrected(text: str):
     return total_bits, avg_bits
 '''
 
-def cleanup_files():
+'''def cleanup_files():
     for file in glob.glob("corenlp_server-*"):
         try:
             os.remove(file)
         except:
             print(f"Error deleting {file}")
+'''
 
 if __name__ == "__main__":
-    cleanup_files()
+    #cleanup_files()
     #if you want line breaks, you need to format it this way 
     # rather than with triple quotes, for token reasons
     
