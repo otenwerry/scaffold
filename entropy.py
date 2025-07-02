@@ -1,19 +1,26 @@
 import math
 import torch
 import sys
+import os
 from transformers import GPT2LMHeadModel, GPT2TokenizerFast, pipeline
 from transformers import T5ForConditionalGeneration, T5Tokenizer
 from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
 import numpy as np
+from openie import StanfordOpenIE
+import glob
 
+#initialize models
 tokenizer = GPT2TokenizerFast.from_pretrained('gpt2')
 model = GPT2LMHeadModel.from_pretrained('gpt2')
 model.eval()
-
 summarizer = T5ForConditionalGeneration.from_pretrained("t5-base")
 summary_tokenizer = T5Tokenizer.from_pretrained("t5-base", legacy=True)
 embedder = SentenceTransformer("all-mpnet-base-v2")
+openie = StanfordOpenIE()
+
+#turn off a flag to avoid tokenizer warnings
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 #beginning of sentence token id
 bos_id = tokenizer.bos_token_id 
@@ -31,7 +38,6 @@ def q_prob(token_id: int, history_ids: torch.Tensor) -> float:
     #returns the probabilities of the next token,
     #doing exp to cancel the log
     return float(torch.exp(log_probs[token_id]))
-
 
 #computes the bits of information content in a string of english text
 def info_content(text: str):
@@ -80,9 +86,15 @@ def compressibility(text: str, similarity_threshold: float):
     return good_ratios
     #return 0.0
 
+def proposition_density(text: str):
+    propositions = []
+    for triple in openie.annotate(text):
+        propositions.append((triple['subject'], triple['relation'], triple['object']))
+    unique_propositions = set(propositions)
+    density = len(unique_propositions) / len(text.split())
+    return density, list(unique_propositions)
 
-
-
+'''
 #lookup table for background probabilities of each token
 bos_id = tokenizer.bos_token_id #beginning of sentence token id
 with torch.no_grad():
@@ -111,11 +123,17 @@ def info_content_background_corrected(text: str):
         total_bits += -math.log2(p_next) + math.log2(p_bg)
         avg_bits = total_bits/(len(ids) - 1)
     return total_bits, avg_bits
+'''
 
-
-
+def cleanup_files():
+    for file in glob.glob("corenlp_server-*"):
+        try:
+            os.remove(file)
+        except:
+            print(f"Error deleting {file}")
 
 if __name__ == "__main__":
+    cleanup_files()
     #if you want line breaks, you need to format it this way 
     # rather than with triple quotes, for token reasons
     
@@ -129,4 +147,7 @@ if __name__ == "__main__":
     print(f"Total bits: {total_bits:.2f}")
     print(f"Bits per token: {per_token_bits:.2f}")
     #print(f"Good compressibility ratios: {compressibility(sample, 0.9)}")
-    print(f"Compressed by 0.36: {compress(sample, 0.36)}. with similarity {cosine_similarity([embedder.encode(sample)], [embedder.encode(compress(sample, 0.36))])[0][0]}")
+    #print(f"Compressed by 0.36: {compress(sample, 0.36)}. with similarity {cosine_similarity([embedder.encode(sample)], [embedder.encode(compress(sample, 0.36))])[0][0]}")
+    density, propositions = proposition_density(sample)
+    print(f"Proposition density: {density} per word. {len(propositions)} propositions, {len(sample.split())} words.")
+    print(f"Propositions: {propositions}")
