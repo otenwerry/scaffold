@@ -12,6 +12,7 @@ from allennlp.predictors.predictor import Predictor
 import allennlp_models.tagging
 import glob
 import nltk
+nltk.download('punkt_tab')
 
 #initialize models
 tokenizer = GPT2TokenizerFast.from_pretrained('gpt2')
@@ -134,9 +135,9 @@ if __name__ == "__main__":
     print(f"Bits per token: {per_token_bits:.2f}")
     #print(f"Good compressibility ratios: {compressibility(sample, 0.9)}")
     #print(f"Compressed by 0.36: {compress(sample, 0.36)}. with similarity {cosine_similarity([embedder.encode(sample)], [embedder.encode(compress(sample, 0.36))])[0][0]}")
-    #density, propositions = proposition_density(sample)
-    #print(f"Proposition density: {density} per word. {len(propositions)} propositions, {len(sample.split())} words.")
-    #print(f"Propositions: {propositions}")
+    density, propositions = proposition_density(sample)
+    print(f"Proposition density: {density} per word. {len(propositions)} propositions, {len(sample.split())} words.")
+    print(f"Propositions: {propositions}")
 
 
 
