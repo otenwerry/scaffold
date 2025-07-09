@@ -12,7 +12,6 @@ from allennlp.predictors.predictor import Predictor
 import allennlp_models.tagging
 import glob
 import nltk
-nltk.download('punkt_tab')
 
 #initialize models
 tokenizer = GPT2TokenizerFast.from_pretrained('gpt2')
