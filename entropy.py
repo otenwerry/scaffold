@@ -92,7 +92,7 @@ def compressibility(text: str, similarity_threshold: float):
     #return 0.0
 
 def extract_propositions_allennlp(text: str):
-    propositions = set() #to ensure uniqueness
+    propositions = []
     sentences = nltk.sent_tokenize(text)
     for sentence in sentences:
         result = srl_predictor.predict(sentence=sentence)
@@ -101,11 +101,9 @@ def extract_propositions_allennlp(text: str):
         #each predicate dictionary has a 'verb' field, which is the predicate,
         #a 'tags' field, which is a list of tags, and a 'description' field,
         #which is a single string. 
-        words = result['words']
-        verbs = result['verbs']
+        words, verbs = result['words'], result['verbs']
         for verb_dict in verbs:
-            verb = verb_dict['verb']
-            tags = verb_dict['tags']
+            verb, tags = verb_dict['verb'], verb_dict['tags']
             args = defaultdict(list) #automatically initializes with empty lists
             current_arg = None
             for token, tag in zip(words, tags): 
@@ -118,11 +116,11 @@ def extract_propositions_allennlp(text: str):
                     args[current_arg].append(token)
                 else:
                     current_arg = None
+            prop = {'verb': verb}
             for arg_label, token_list in args.items(): #arg_label is arg0, arg1, etc
-                args[arg_label] = ' '.join(token_list) #turn from list to string
-            prop = tuple([verb] + [args[arg] for arg in sorted(args.keys())]) #sort args by arg_label
-            propositions.add(prop)
-    return list(propositions)
+                prop[arg_label] = ' '.join(token_list) #turn from list to string
+            propositions.append(prop)
+    return propositions
 
 
 
