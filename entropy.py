@@ -6,8 +6,8 @@ from transformers import GPT2LMHeadModel, GPT2TokenizerFast, pipeline
 from transformers import T5ForConditionalGeneration, T5Tokenizer
 from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
+from collections import defaultdict
 import numpy as np
-#from openie import StanfordOpenIE
 from allennlp.predictors.predictor import Predictor
 import allennlp_models.tagging
 import glob
@@ -92,24 +92,39 @@ def compressibility(text: str, similarity_threshold: float):
     #return 0.0
 
 def extract_propositions_allennlp(text: str):
-    propositions = []
+    propositions = set() #to ensure uniqueness
     sentences = nltk.sent_tokenize(text)
     for sentence in sentences:
         result = srl_predictor.predict(sentence=sentence)
-        for verb_dict in result['verbs']:
+        #result gives result['words'], which is a list of tokens,
+        #and result['verbs'], which is a list of predicate dictionaries.
+        #each predicate dictionary has a 'verb' field, which is the predicate,
+        #a 'tags' field, which is a list of tags, and a 'description' field,
+        #which is a single string. 
+        words = result['words']
+        verbs = result['verbs']
+        for verb_dict in verbs:
             verb = verb_dict['verb']
-            args = {}
-            for tag in verb_dict['tags']:
-                if tag.startswith('B-ARG'):
-                    arg_type = tag[2:]
-                    args[arg_type] = []
-                elif tag.startswith('I-ARG') and args:
-                    pass
-            description = verb_dict['description']
-            prop_parts = description.replace('[', '').replace(']', '').split(':')
-            if len(prop_parts) > 1:
-                propositions.append(tuple(prop_parts))
-    return propositions
+            tags = verb_dict['tags']
+            args = defaultdict(list) #what does defaultdict?
+            current_arg = None
+            for token, tag in zip(words, tags): #what does zip do?
+                if tag.startswith('B-ARG'): #what is B-ARG or I-ARG or the other tags?
+                    current_arg = tag[2:]
+                    args[current_arg].append(token)
+                elif tag.startswith('I-ARG') and current_arg:
+                    args[current_arg].append(token)
+                else:
+                    current_arg = None
+            for arg_type, token_list in args.items():
+                args[arg_type] = ' '.join(token_list)
+            prop = tuple([verb] + [args[arg_type] for arg in sorted(args.keys())])
+            propositions.add(prop)
+    return list(propositions)
+
+
+
+    
 
 def proposition_density(text: str):
     propositions = extract_propositions_allennlp(text)
@@ -136,8 +151,9 @@ if __name__ == "__main__":
     #print(f"Compressed by 0.36: {compress(sample, 0.36)}. with similarity {cosine_similarity([embedder.encode(sample)], [embedder.encode(compress(sample, 0.36))])[0][0]}")
     density, propositions = proposition_density(sample)
     print(f"Proposition density: {density} per word. {len(propositions)} propositions, {len(sample.split())} words.")
-    print(f"Propositions: {propositions}")
-
+    for prop in propositions:
+        print(prop)
+        print("\n")
 
 
 
