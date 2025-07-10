@@ -120,7 +120,9 @@ def extract_propositions_allennlp(text: str):
             for arg_label, token_list in args.items(): #arg_label is arg0, arg1, etc
                 prop[arg_label] = ' '.join(token_list) #turn from list to string
             propositions.append(prop)
-    return propositions
+    #remove duplicates
+    unique_propositions = {frozenset(prop.items()) for prop in propositions}
+    return list(unique_propositions)
 
 
 
