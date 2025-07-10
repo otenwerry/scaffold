@@ -106,19 +106,21 @@ def extract_propositions_allennlp(text: str):
         for verb_dict in verbs:
             verb = verb_dict['verb']
             tags = verb_dict['tags']
-            args = defaultdict(list) #what does defaultdict?
+            args = defaultdict(list) #automatically initializes with empty lists
             current_arg = None
-            for token, tag in zip(words, tags): #what does zip do?
-                if tag.startswith('B-ARG'): #what is B-ARG or I-ARG or the other tags?
-                    current_arg = tag[2:]
+            for token, tag in zip(words, tags): 
+                if tag.startswith('B-ARG'): #B-ARGi is beginning of argument i
+                    current_arg = tag[2:] #labels as argument i
                     args[current_arg].append(token)
-                elif tag.startswith('I-ARG') and current_arg:
+                elif tag.startswith('I-ARG') and current_arg: #I-ARGi is inside argument i
+                    #this assumes that the arguments are contiguous, which is true - 
+                    #if one argument i is split across two sentences, it will get two B-ARGi tags.
                     args[current_arg].append(token)
                 else:
                     current_arg = None
-            for arg_type, token_list in args.items():
-                args[arg_type] = ' '.join(token_list)
-            prop = tuple([verb] + [args[arg_type] for arg in sorted(args.keys())])
+            for arg_label, token_list in args.items(): #arg_label is arg0, arg1, etc
+                args[arg_label] = ' '.join(token_list) #turn from list to string
+            prop = tuple([verb] + [args[arg] for arg in sorted(args.keys())]) #sort args by arg_label
             propositions.add(prop)
     return list(propositions)
 
