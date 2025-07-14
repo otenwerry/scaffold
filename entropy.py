@@ -12,6 +12,7 @@ from allennlp.predictors.predictor import Predictor
 import allennlp_models.tagging
 import glob
 import nltk
+import re
 
 #initialize models
 tokenizer = GPT2TokenizerFast.from_pretrained('gpt2')
@@ -124,6 +125,25 @@ def extract_propositions_allennlp(text: str):
     unique_propositions = {frozenset(prop.items()) for prop in propositions}
     return list(unique_propositions)
 
+#this is the better version but I don't fully understand it yet so keeping both
+def extract_propositions_2(text: str):
+    propositions = []
+    sentences = nltk.sent_tokenize(text)
+    for sentence in sentences:
+        result = srl_predictor.predict(sentence=sentence)
+        for verb_info in result['verbs']:
+            description = verb_info['description']
+            arg_strings = re.findall(r"\[([A-Z\-0-9]+):\s+([^\]]+)\]", description)
+            prop = {}
+            for role, chunk in arg_strings:
+                if role == 'V':
+                    prop["verb_phrase"] = chunk
+                else:
+                    prop[role] = chunk
+            propositions.append(prop)
+        unique = {tuple(sorted(s.items())) for s in propositions}
+    return [dict(s) for s in list(unique)]
+
 
 
     
@@ -155,7 +175,8 @@ if __name__ == "__main__":
     print(f"Proposition density: {density} per word. {len(propositions)} propositions, {len(sample.split())} words.")
     for prop in propositions:
         print(prop)
-        print("\n")
+    for prop in extract_propositions_2(sample):
+        print(prop)
 
 
 
