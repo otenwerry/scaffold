@@ -170,6 +170,9 @@ if __name__ == "__main__":
     #print(f"Total tokens: {total_bits / per_token_bits}")
     #print(f"Total bits: {total_bits:.2f}")
     #print(f"Bits per token: {per_token_bits:.2f}")
+
+    #print the 0.99 compression
+    print(f"Compressed by 0.99: {compress(sample, 0.99)}")
     ratios = compressibility(sample, 0.9)
     print(f"Compressible by {min(ratios)}")
     #print(f"Good compressibility ratios: {compressibility(sample, 0.9)}")
