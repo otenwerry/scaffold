@@ -23,7 +23,7 @@ summary_tokenizer = T5Tokenizer.from_pretrained("t5-base", legacy=True)
 embedder = SentenceTransformer("all-mpnet-base-v2")
 #openie = StanfordOpenIE()
 #srl = semantic role labeling
-srl_predictor = Predictor.from_path("https://storage.googleapis.com/allennlp-public-models/structured-prediction-srl-bert.2020.12.15.tar.gz")
+#srl_predictor = Predictor.from_path("https://storage.googleapis.com/allennlp-public-models/structured-prediction-srl-bert.2020.12.15.tar.gz")
 
 #turn off a flag to avoid tokenizer warnings
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
