@@ -20,7 +20,7 @@ model = GPT2LMHeadModel.from_pretrained('gpt2')
 model.eval()
 summarizer = T5ForConditionalGeneration.from_pretrained("t5-base")
 summary_tokenizer = T5Tokenizer.from_pretrained("t5-base", legacy=True)
-embedder = SentenceTransformer("all-mpnet-base-v2")
+embedder = SentenceTransformer("all-mpnet-base-v2", device="cpu")
 #openie = StanfordOpenIE()
 #srl = semantic role labeling
 #srl_predictor = Predictor.from_path("https://storage.googleapis.com/allennlp-public-models/structured-prediction-srl-bert.2020.12.15.tar.gz")
@@ -89,6 +89,7 @@ def compressibility(text: str, similarity_threshold: float):
         if similarity >= similarity_threshold: #for the comments it would be <=
             #return round(ratio + 0.01, 2)
             good_ratios.append(round(ratio, 2))
+        print(round(ratio, 2), similarity)
     return good_ratios
     #return 0.0
 
@@ -169,7 +170,8 @@ if __name__ == "__main__":
     #print(f"Total tokens: {total_bits / per_token_bits}")
     #print(f"Total bits: {total_bits:.2f}")
     #print(f"Bits per token: {per_token_bits:.2f}")
-    print(f"Compressible by {min(compressibility(sample, 0.9))}")
+    ratios = compressibility(sample, 0.9)
+    print(f"Compressible by {min(ratios)}")
     #print(f"Good compressibility ratios: {compressibility(sample, 0.9)}")
     #print(f"Compressed by 0.36: {compress(sample, 0.36)}. with similarity {cosine_similarity([embedder.encode(sample)], [embedder.encode(compress(sample, 0.36))])[0][0]}")
     '''density, propositions = proposition_density(sample)
