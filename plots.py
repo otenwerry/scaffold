@@ -22,7 +22,7 @@ def compute_features(text: str):
     compressibility = entropy.compressibility(text, 0.9)
     prop_density, _ = entropy.proposition_density(text)
     return pd.Series({
-        "bits_per_token": bits_per_token,
+        #"bits_per_token": bits_per_token,
         "compressibility": compressibility
         #"prop_density": prop_density #commented out for dependency issues
     })
@@ -32,7 +32,7 @@ feature_df= df[ESSAY_COL].progress_apply(compute_features)
 df = pd.concat([df, feature_df], axis=1)
 
 #scatterplots for each feature
-for col in ["bits_per_token", "compressibility", "prop_density"]:
+for col in ["compressibility"]: #"bits_per_token", "prop_density"]:
     g = sns.relplot(
         data=df, x=col, y=SCORE_COL, hue=SET_COL, 
         height=4, aspect=1.2, kind="scatter", alpha=0.4
