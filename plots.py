@@ -23,8 +23,8 @@ def compute_features(text: str):
     prop_density, _ = entropy.proposition_density(text)
     return pd.Series({
         "bits_per_token": bits_per_token,
-        "compressibility": compressibility,
-        "prop_density": prop_density
+        "compressibility": compressibility
+        #"prop_density": prop_density #commented out for dependency issues
     })
 
 # apply the function and add the results to the dataframe
