@@ -8,8 +8,8 @@ from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
 from collections import defaultdict
 import numpy as np
-from allennlp.predictors.predictor import Predictor
-import allennlp_models.tagging
+#from allennlp.predictors.predictor import Predictor
+#import allennlp_models.tagging
 import glob
 import nltk
 import re
@@ -161,7 +161,7 @@ if __name__ == "__main__":
     # rather than with triple quotes, for token reasons
     
     sample = ( 
-        "There is currently a lively, ongoing controversy among many sociologists and other professionals who study human nature : theories are being spun and arguments are being conducted among them about what it means that so many young people—and older people, for that matter—who live in our society today are so very interested in stories about zombies.?"
+        "Dear local newspaper, I think effects computers have on people are great learning skills/affects because they give us time to chat with friends/new people, helps us learn about the globe(astronomy) and keeps us out of troble! Thing about! Dont you think so? How would you feel if your teenager is always on the phone with friends! Do you ever time to chat with your friends or buisness partner about things. Well now - there's a new way to chat the computer, theirs plenty of sites on the internet to do so: @ORGANIZATION1, @ORGANIZATION2, @CAPS1, facebook, myspace ect. Just think now while your setting up meeting with your boss on the computer, your teenager is having fun on the phone not rushing to get off cause you want to use it. How did you learn about other countrys/states outside of yours? Well I have by computer/internet, it's a new way to learn about what going on in our time! You might think your child spends a lot of time on the computer, but ask them so question about the economy, sea floor spreading or even about the @DATE1's you'll be surprise at how much he/she knows. Believe it or not the computer is much interesting then in class all day reading out of books. If your child is home on your computer or at a local library, it's better than being out with friends being fresh, or being perpressured to doing something they know isnt right. You might not know where your child is, @CAPS2 forbidde in a hospital bed because of a drive-by. Rather than your child on the computer learning, chatting or just playing games, safe and sound in your home or community place. Now I hope you have reached a point to understand and agree with me, because computers can have great effects on you or child because it gives us time to chat with friends/new people, helps us learn about the globe and believe or not keeps us out of troble. Thank you for listening."
     )
     total_bits, per_token_bits = info_content(sample)
     print(sample)
@@ -169,6 +169,7 @@ if __name__ == "__main__":
     print(f"Total tokens: {total_bits / per_token_bits}")
     print(f"Total bits: {total_bits:.2f}")
     print(f"Bits per token: {per_token_bits:.2f}")
+    print(f"Compressible by {min(compressibility(sample, 0.9))}")
     #print(f"Good compressibility ratios: {compressibility(sample, 0.9)}")
     #print(f"Compressed by 0.36: {compress(sample, 0.36)}. with similarity {cosine_similarity([embedder.encode(sample)], [embedder.encode(compress(sample, 0.36))])[0][0]}")
     '''density, propositions = proposition_density(sample)
@@ -179,42 +180,3 @@ if __name__ == "__main__":
         print(prop)
 '''
 
-
-#old code
-'''
-#lookup table for background probabilities of each token
-bos_id = tokenizer.bos_token_id #beginning of sentence token id
-with torch.no_grad():
-    #get the logits for the first token after the beginning of sentence token,
-    #i.e. the first token in the sentence, and softmax to get probabilities
-    out = model(torch.tensor([[bos_id]]))
-    logits = out.logits[0, -1, :]
-    p_bg_dist = torch.softmax(logits, dim=-1)
-
-#computes the bits of information content in a string of english text,
-#corrected for the background probability of each token
-#(aka negative PMI?)
-def info_content_background_corrected(text: str):
-    enc = tokenizer(text, return_tensors='pt')
-    ids = enc.input_ids[0]
-    total_bits = 0.0
-
-    #compute bits of information content like before, 
-    #but subtract the background probability
-    for i in range(1,len(ids)):
-        history_ids = ids[:i].unsqueeze(0)
-        p_next = q_prob(int(ids[i]), history_ids)
-        if p_next <= 0:
-            raise ValueError(f"Invalid probability: {tokenizer.decode(ids[i])}")
-        p_bg = p_bg_dist[int(ids[i])]
-        total_bits += -math.log2(p_next) + math.log2(p_bg)
-        avg_bits = total_bits/(len(ids) - 1)
-    return total_bits, avg_bits
-
-def cleanup_files():
-    for file in glob.glob("corenlp_server-*"):
-        try:
-            os.remove(file)
-        except:
-            print(f"Error deleting {file}")
-'''
