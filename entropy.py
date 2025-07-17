@@ -32,7 +32,7 @@ os.environ["TOKENIZERS_PARALLELISM"] = "false"
 #computes the bits of information content in a string of english text
 def info_content(text: str, device="cpu"):
     #tokenize the text
-    enc = tokenizer(text, return_tensors='pt')
+    enc = tokenizer(text, return_tensors='pt', truncation=True, max_length = model.config.n_positions)
     ids = enc.input_ids.to(device)
     with torch.no_grad():#disables gradient tracking to save memory
         #get the logits of all tokens in the text
