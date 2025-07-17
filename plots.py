@@ -1,6 +1,6 @@
 import pandas as pd
 from tqdm import tqdm
-tqdm.pandas() #progress bar for pandas (?)
+tqdm.pandas() #progress bar for pandas 
 import entropy
 import matplotlib.pyplot as plt
 import seaborn as sns
