@@ -10,7 +10,7 @@ from scipy.stats import spearmanr, pearsonr
 #read in the training set
 #quoting=3 leaves the quotes alone
 path = "asap-aes/training_set_rel3.tsv"
-df = pd.read_csv(path, sep="\t", quoting=3, encoding="latin-1")
+df = pd.read_csv(path, sep="\t", quoting=3, encoding="latin-1").head(1000)
 
 #important columns
 ESSAY_COL = "essay"
