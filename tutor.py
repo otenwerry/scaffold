@@ -1,18 +1,20 @@
 import asyncio, io, wave, tempfile, time
 from threading import Thread
+
 import mss, numpy as np, sounddevice as sd, simpleaudio as sa
 from openai import OpenAI
 from keyboard import is_pressed, wait
 
-
+#instantiate client
 client = OpenAI()
 
+#screen capture
 def grab_screen() -> bytes:
     with mss.mss() as sct:
         img = sct.grab(sct.monitors[0])          # full display
         return mss.tools.to_png(img.rgb, img.size)
     
-
+#audio capture
 def record_until_keyup(fs=16_000):
     rec = []
     def cb(indata, frames, t, status):
@@ -26,13 +28,13 @@ def record_until_keyup(fs=16_000):
     wav.seek(0)
     return wav
 
-
+#speech to text with whisper
 async def transcribe(wav_io):
     return (await client.audio.transcriptions.create(
         model='whisper-1', file=wav_io
     )).text
 
-
+#ask llm with vision
 async def ask_llm(prompt, png_bytes):
     return (await client.chat.completions.create(
         model='gpt-4o-mini',  # cheaper vision tier
@@ -47,14 +49,14 @@ async def ask_llm(prompt, png_bytes):
         ]
     )).choices[0].message.content
 
-
+#text to speech with openai
 async def speak(text):
     audio = await client.audio.speech.create(
         model='tts-1', input=text, voice='alloy', format='wav'
     )
     sa.WaveObject.from_wave_file(audio).play().wait_done()
 
-
+#hotkey loop (runs in a daemon thread)
 def loop():
     print("Press F9 to ask.  Esc to quit.")
     while True:
@@ -63,6 +65,7 @@ def loop():
         asyncio.run(pipeline(png, wav))
         if is_pressed('esc'): break
 
+#main pipeline
 async def pipeline(png, wav):
     transcript = await transcribe(wav)
     answer = await ask_llm(transcript, png)
