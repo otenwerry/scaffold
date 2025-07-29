@@ -49,10 +49,14 @@ def record_until_keyup(fs=16_000):
                 time.sleep(.02) #wait until f9 is released (check every 20ms)
     audio = np.concatenate(rec) #concatenate all the audio chunks
     #write to wav file for the speech to text model
-    wav = io.BytesIO()
-    wave.write(wav, wave.WAVE_FORMAT_PCM, 1, fs, audio.tobytes())
-    wav.seek(0)
-    return wav
+    wav_io = io.BytesIO()
+    with wave.open(wav_io, 'wb') as wav:
+        wav.setnchannels(1)
+        wav.setsampwidth(2)
+        wav.setframerate(fs)
+        wav.writeframes(audio.tobytes())
+    wav_io.seek(0)
+    return wav_io
 
 #speech to text with whisper
 #made async so that other code can run while this is running,
