@@ -43,10 +43,10 @@ def record_until_keyup(fs=16_000):
     def cb(indata, frames, t, status):
         rec.append(indata.copy())
         if not f9_pressed: 
-            raise sd.CallbackAbort
-    sd.InputStream(callback=cb, channels=1, samplerate=fs).start()
-    while f9_pressed: 
-        time.sleep(.02) #wait until f9 is released (check every 20ms)
+            raise sd.CallbackStop
+        with sd.InputStream(callback=cb, channels=1, samplerate=fs) as stream:
+            while f9_pressed:
+                time.sleep(.02) #wait until f9 is released (check every 20ms)
     audio = np.concatenate(rec) #concatenate all the audio chunks
     #write to wav file for the speech to text model
     wav = io.BytesIO()
