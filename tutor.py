@@ -109,7 +109,13 @@ async def pipeline(png, wav):
     await speak(answer)
 
 if __name__ == '__main__':
-    loop()
+    try:
+        loop()
+    except Exception as e:
+        print(f"Error: {e}")
+    finally:
+        listener.stop()
+
     #thread allows you to run code in parallel to the main thread
     #daemon=True means that the thread will exit when the main thread exits
     #Thread(target=loop, daemon=True).start()
