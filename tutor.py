@@ -3,11 +3,33 @@ from threading import Thread
 
 import mss, numpy as np, sounddevice as sd, simpleaudio as sa
 from openai import OpenAI
-from keyboard import is_pressed, wait
+from keyboard import is_pressed
 from pynput import keyboard
 
 #instantiate client
 client = OpenAI()
+
+#global flag to track whether f9 got pressed
+f9_pressed = False
+
+#track that f9 got pressed
+def on_press(key):
+    global f9_pressed
+    if key == keyboard.Key.f9:
+        f9_pressed = True
+
+#track that f9 got released or quit listener if esc got pressed
+def on_release(key):
+    global f9_pressed
+    if key == keyboard.Key.f9:
+        f9_pressed = False
+    if key == keyboard.Key.esc:
+        return False
+
+#creates and starts a listener that monitors key presses and releases
+listener = keyboard.Listener(on_press=on_press, on_release=on_release)
+listener.start()
+
 
 #screen capture
 def grab_screen() -> bytes:
@@ -15,22 +37,17 @@ def grab_screen() -> bytes:
         img = sct.grab(sct.monitors[0]) #full display
         return mss.tools.to_png(img.rgb, img.size)
 
-#wait for f9 to be pressed on mac
-def wait_for_f9():
-    with keyboard.Events() as events:
-        for event in events:
-            if isinstance(event, keyboard.Events.Press) and event.key == keyboard.Key.f9:
-                return
-
 #audio capture, while f9 is being held
 def record_until_keyup(fs=16_000):
     rec = []
     #"callback" function to continuously record and append to rec
     def cb(indata, frames, t, status):
         rec.append(indata.copy())
-        if not is_pressed('f9'): raise sd.CallbackAbort
+        if not f9_pressed: 
+            raise sd.CallbackAbort
     sd.InputStream(callback=cb, channels=1, samplerate=fs).start()
-    while is_pressed('f9'): time.sleep(.02) #wait until f9 is released (check every 20ms)
+    while f9_pressed: 
+        time.sleep(.02) #wait until f9 is released (check every 20ms)
     audio = np.concatenate(rec) #concatenate all the audio chunks
     #write to wav file for the speech to text model
     wav = io.BytesIO()
@@ -74,11 +91,14 @@ async def speak(text):
 #wait for f9, grab the screen, record the audio, and run the pipeline.
 def loop():
     print("Press F9 to ask.  Esc to quit.")
-    while True:
-        wait('f9')
+    while listener.running:
+        while not f9_pressed and listener.running:
+            time.sleep(.02)
+        if not listener.running:
+            break
         png, wav = grab_screen(), record_until_keyup()
         asyncio.run(pipeline(png, wav))
-        if is_pressed('esc'): break
+
 
 #main pipeline: given a screenshot and audio,
 #transcribe the audio, ask the llm, and speak the answer.
