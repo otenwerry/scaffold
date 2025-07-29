@@ -3,7 +3,6 @@ from threading import Thread
 
 import mss, numpy as np, sounddevice as sd, simpleaudio as sa
 from openai import OpenAI
-from keyboard import is_pressed
 from pynput import keyboard
 
 #instantiate client
