@@ -4,6 +4,7 @@ from threading import Thread
 import mss, numpy as np, sounddevice as sd, simpleaudio as sa
 from openai import OpenAI
 from keyboard import is_pressed, wait
+from pynput import keyboard
 
 #instantiate client
 client = OpenAI()
@@ -11,24 +12,36 @@ client = OpenAI()
 #screen capture
 def grab_screen() -> bytes:
     with mss.mss() as sct:
-        img = sct.grab(sct.monitors[0])          # full display
+        img = sct.grab(sct.monitors[0]) #full display
         return mss.tools.to_png(img.rgb, img.size)
-    
-#audio capture
+
+#wait for f9 to be pressed on mac
+def wait_for_f9():
+    with keyboard.Events() as events:
+        for event in events:
+            if isinstance(event, keyboard.Events.Press) and event.key == keyboard.Key.f9:
+                return
+
+#audio capture, while f9 is being held
 def record_until_keyup(fs=16_000):
     rec = []
+    #"callback" function to continuously record and append to rec
     def cb(indata, frames, t, status):
         rec.append(indata.copy())
         if not is_pressed('f9'): raise sd.CallbackAbort
     sd.InputStream(callback=cb, channels=1, samplerate=fs).start()
-    while is_pressed('f9'): time.sleep(.02)
-    audio = np.concatenate(rec)
+    while is_pressed('f9'): time.sleep(.02) #wait until f9 is released (check every 20ms)
+    audio = np.concatenate(rec) #concatenate all the audio chunks
+    #write to wav file for the speech to text model
     wav = io.BytesIO()
     wave.write(wav, wave.WAVE_FORMAT_PCM, 1, fs, audio.tobytes())
     wav.seek(0)
     return wav
 
 #speech to text with whisper
+#made async so that other code can run while this is running,
+#to avoid the program freezing while waiting for the model to respond.
+#(for example, without this you wouldn't be able to quit while waiting for the model to respond)
 async def transcribe(wav_io):
     return (await client.audio.transcriptions.create(
         model='whisper-1', file=wav_io
@@ -38,6 +51,7 @@ async def transcribe(wav_io):
 async def ask_llm(prompt, png_bytes):
     return (await client.chat.completions.create(
         model='gpt-4o-mini',  # cheaper vision tier
+        max_tokens=100, #temporary for testing
         messages=[
             {'role':'system',
              'content':'You are a concise tutor who explains aloud.'},
@@ -56,7 +70,8 @@ async def speak(text):
     )
     sa.WaveObject.from_wave_file(audio).play().wait_done()
 
-#hotkey loop (runs in a daemon thread)
+#until the user presses esc,
+#wait for f9, grab the screen, record the audio, and run the pipeline.
 def loop():
     print("Press F9 to ask.  Esc to quit.")
     while True:
@@ -65,7 +80,9 @@ def loop():
         asyncio.run(pipeline(png, wav))
         if is_pressed('esc'): break
 
-#main pipeline
+#main pipeline: given a screenshot and audio,
+#transcribe the audio, ask the llm, and speak the answer.
+#also print the question and answer to the console.
 async def pipeline(png, wav):
     transcript = await transcribe(wav)
     answer = await ask_llm(transcript, png)
@@ -73,4 +90,7 @@ async def pipeline(png, wav):
     await speak(answer)
 
 if __name__ == '__main__':
-    Thread(target=loop, daemon=True).start()
+    loop()
+    #thread allows you to run code in parallel to the main thread
+    #daemon=True means that the thread will exit when the main thread exits
+    #Thread(target=loop, daemon=True).start()
