@@ -48,8 +48,11 @@ async def speak(text):
 #until the user presses esc,
 #wait for f9, grab the screen, record the audio, and run the pipeline.
 def loop(stdscr):
+    #enter cbreak mode to make characters immediately available instead of waiting for enter
     curses.cbreak()
+    #allow special keys like f9 to be detected
     stdscr.keypad(True)
+    #block until a key is pressed instead of returning -1 immediately
     stdscr.nodelay(False)
     stdscr.addstr("Press F9 to ask.  Esc to quit.")
     while True:
@@ -78,6 +81,7 @@ def loop(stdscr):
                 wav.setframerate(16_000)
                 wav.writeframes(audio_int16.tobytes())
             wav_io.seek(0)
+            wav_io.name = "audio.wav"
             png = grab_screen()
             #run the pipeline
             asyncio.run(pipeline(png, wav_io))
