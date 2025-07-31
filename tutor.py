@@ -68,12 +68,14 @@ def loop(stdscr):
                     time.sleep(.02)
             #concatenate all the audio chunks and put in a wav file
             audio = np.concatenate(audio_chunks)
+            #convert to int16
+            audio_int16 = (audio * 32767).astype(np.int16)
             wav_io = io.BytesIO()
             with wave.open(wav_io, 'wb') as wav:
                 wav.setnchannels(1)
                 wav.setsampwidth(2)
                 wav.setframerate(16_000)
-                wav.writeframes(audio.tobytes())
+                wav.writeframes(audio_int16.tobytes())
             wav_io.seek(0)
             png = grab_screen()
             #run the pipeline
