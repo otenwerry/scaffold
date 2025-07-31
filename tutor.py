@@ -54,7 +54,7 @@ def loop(stdscr):
     stdscr.addstr("Press F9 to ask.  Esc to quit.")
     while True:
         key = stdscr.getch()
-        if key == curses.KEY_ESC:
+        if key == 27: #esc
             break
         elif key == curses.KEY_F9:
             stdscr.addstr("Recording...")
