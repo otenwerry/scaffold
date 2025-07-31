@@ -66,6 +66,7 @@ def loop(stdscr):
             with sd.InputStream(callback=callback, channels=1, samplerate=16_000):
                 while stdscr.getch() == curses.KEY_F9:
                     time.sleep(.02)
+            stdscr.addstr("Recording done.")
             #concatenate all the audio chunks and put in a wav file
             audio = np.concatenate(audio_chunks)
             #convert to int16
