@@ -47,8 +47,10 @@ async def speak(text):
         model='tts-1', input=text, voice='alloy'
     )
     #save the response to a temporary file and play it
+    audio_bytes = response.read()
     with tempfile.NamedTemporaryFile(delete=True, suffix='.wav') as f:
-        response.save(f.name)
+        f.write(audio_bytes)
+        f.flush()
         sa.WaveObject.from_wave_file(f.name).play().wait_done()
 
 
