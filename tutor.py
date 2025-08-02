@@ -56,24 +56,27 @@ def loop(stdscr):
     stdscr.nodelay(False)
     stdscr.addstr("Press F9 to ask.  Esc to quit.")
     while True:
+        #wait for a key to be pressed
         key = stdscr.getch()
         if key == 27: #esc
             break
         elif key == curses.KEY_F9:
             stdscr.addstr("Recording...")
             audio_chunks = []
+            #callback function to continuously record and append to audio_chunks
             def callback(indata, frames, t, status):
                 audio_chunks.append(indata.copy())
-            #create an audio input stream using the callback function,
-            #running until f9 is released
+            #create an audio input stream using the callback function
             with sd.InputStream(callback=callback, channels=1, samplerate=16_000):
+                #run until f9 is released
                 while stdscr.getch() == curses.KEY_F9:
                     time.sleep(.02)
             stdscr.addstr("Recording done.")
-            #concatenate all the audio chunks and put in a wav file
+            #concatenate all the audio chunks
             audio = np.concatenate(audio_chunks)
             #convert to int16
             audio_int16 = (audio * 32767).astype(np.int16)
+            #put audio in a wav file
             wav_io = io.BytesIO()
             with wave.open(wav_io, 'wb') as wav:
                 wav.setnchannels(1)
@@ -82,9 +85,11 @@ def loop(stdscr):
                 wav.writeframes(audio_int16.tobytes())
             wav_io.seek(0)
             wav_io.name = "audio.wav"
+            #take a screenshot
             png = grab_screen()
-            #run the pipeline
+            #run the pipeline using the wav file and the screenshot
             asyncio.run(pipeline(png, wav_io))
+            #restart the loop
             stdscr.addstr("Press F9 to ask.  Esc to quit.")
 
 
@@ -98,4 +103,6 @@ async def pipeline(png, wav):
     await speak(answer)
 
 if __name__ == '__main__':
+    #sets up the terminal for curses use, allocates a standard screen object (stdscr),
+    #calls loop(stdscr), and cleans up the terminal when the program exits
     curses.wrapper(loop)
