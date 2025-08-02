@@ -62,8 +62,8 @@ def loop(stdscr):
     curses.cbreak()
     #allow special keys like f9 to be detected
     stdscr.keypad(True)
-    #block until a key is pressed instead of returning -1 immediately
-    stdscr.nodelay(False)
+    #return -1 if no key is pressed immediately
+    stdscr.nodelay(True)
     stdscr.addstr("Press F9 to ask.  Esc to quit.")
     while True:
         #wait for a key to be pressed
@@ -101,6 +101,10 @@ def loop(stdscr):
             asyncio.run(pipeline(png, wav_io))
             #restart the loop
             stdscr.addstr("Press F9 to ask.  Esc to quit.")
+        elif key == -1: #no key pressed
+            time.sleep(.02)
+        else: #other key pressed
+            continue
 
 
 #main pipeline: given a screenshot and audio,
