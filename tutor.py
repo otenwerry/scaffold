@@ -44,10 +44,17 @@ async def ask_llm(prompt, png_bytes):
 
 #text to speech with openai
 async def speak(text):
-    audio = await client.audio.speech.create(
-        model='tts-1', input=text, voice='alloy', format='wav'
+    #get response from tts model
+    response = await client.audio.speech.create(
+        model='tts-1', input=text, voice='alloy'
     )
-    sa.WaveObject.from_wave_file(audio).play().wait_done()
+    #get raw bytes
+    buf = io.BytesIO(await response.read())
+    buf.seek(0)
+    #open the wav file and play it
+    with wave.open(buf, 'rb') as wav:
+        sa.WaveObject.from_wave_read(wav).play().wait_done()
+
 
 #until the user presses esc,
 #wait for f9, grab the screen, record the audio, and run the pipeline.
