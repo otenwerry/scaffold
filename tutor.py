@@ -29,7 +29,7 @@ async def ask_llm(prompt, png_bytes):
     image_payload = f'data:image/png;base64,{b64_png}'
     return (await client.chat.completions.create(
         model='gpt-4o-mini',  # cheaper vision tier
-        max_tokens=100, #temporary for testing
+        max_tokens=500, #temporary for testing
         messages=[
             {'role':'system',
              'content':'You are a concise tutor who explains aloud.'},
