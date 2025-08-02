@@ -44,7 +44,7 @@ async def ask_llm(prompt, png_bytes):
 async def speak(text):
     #get response from tts model
     response = await client.audio.speech.create(
-        model='tts-1', input=text, voice='alloy'
+        model='tts-1', input=text, voice='alloy', response_format='wav'
     )
     #save the response to a temporary file and play it
     audio_bytes = response.read()
