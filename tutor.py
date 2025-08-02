@@ -48,10 +48,13 @@ async def speak(text):
     )
     #save the response to a temporary file and play it
     audio_bytes = response.read()
-    with tempfile.NamedTemporaryFile(delete=True, suffix='.wav') as f:
-        f.write(audio_bytes)
-        f.flush()
-        sa.WaveObject.from_wave_file(f.name).play().wait_done()
+    #read into numpy array
+    with wave.open(io.BytesIO(audio_bytes), 'rb') as wav:
+        frames = wav.readframes(wav.getnframes())
+        audio = np.frombuffer(frames, dtype=np.int16)
+        fs = wav.getframerate()
+    sd.play(audio, fs)
+    sd.wait()
 
 
 
