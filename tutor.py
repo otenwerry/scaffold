@@ -71,7 +71,7 @@ def loop(stdscr):
         if key == 27: #esc
             break
         elif key == curses.KEY_F9:
-            stdscr.addstr("Recording...")
+            stdscr.addstr("Recording... Press F9 to stop.")
             audio_chunks = []
             #callback function to continuously record and append to audio_chunks
             def callback(indata, frames, t, status):
@@ -79,9 +79,15 @@ def loop(stdscr):
             #create an audio input stream using the callback function
             with sd.InputStream(callback=callback, channels=1, samplerate=16_000):
                 #run until f9 is released
-                while stdscr.getch() == curses.KEY_F9:
-                    time.sleep(.02)
-            stdscr.addstr("Recording done.")
+                while True:
+                    k = stdscr.getch()
+                    if k == -1:
+                        time.sleep(.02)
+                    elif k == curses.KEY_F9:
+                        break
+                    else:
+                        continue
+            stdscr.addstr("\nRecording done.")
             #concatenate all the audio chunks
             audio = np.concatenate(audio_chunks)
             #convert to int16
