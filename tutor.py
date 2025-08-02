@@ -1,9 +1,7 @@
-import asyncio, io, wave, time
-import curses
+import asyncio, io, wave, time, base64, tempfile, curses
 
 import mss, numpy as np, sounddevice as sd, simpleaudio as sa
 from openai import AsyncOpenAI
-import base64
 
 #instantiate async client (necessary for async functions)
 client = AsyncOpenAI()
@@ -48,13 +46,11 @@ async def speak(text):
     response = await client.audio.speech.create(
         model='tts-1', input=text, voice='alloy'
     )
-    #get raw bytes
-    raw_bytes = response.read()
-    buf = io.BytesIO(raw_bytes)
-    buf.seek(0)
-    #open the wav file and play it
-    with wave.open(buf, 'rb') as wav:
-        sa.WaveObject.from_wave_read(wav).play().wait_done()
+    #save the response to a temporary file and play it
+    with tempfile.NamedTemporaryFile(delete=True, suffix='.wav') as f:
+        response.save(f.name)
+        sa.WaveObject.from_wave_file(f.name).play().wait_done()
+
 
 
 #until the user presses esc,
