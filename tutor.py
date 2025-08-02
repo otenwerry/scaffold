@@ -49,7 +49,8 @@ async def speak(text):
         model='tts-1', input=text, voice='alloy'
     )
     #get raw bytes
-    buf = io.BytesIO(await response.read())
+    raw_bytes = response.read()
+    buf = io.BytesIO(raw_bytes)
     buf.seek(0)
     #open the wav file and play it
     with wave.open(buf, 'rb') as wav:
