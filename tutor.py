@@ -2,10 +2,11 @@ import asyncio, io, wave, time
 import curses
 
 import mss, numpy as np, sounddevice as sd, simpleaudio as sa
-from openai import OpenAI
+from openai import AsyncOpenAI
+import base64
 
-#instantiate client
-client = OpenAI()
+#instantiate async client (necessary for async functions)
+client = AsyncOpenAI()
 
 #screen capture
 def grab_screen() -> bytes:
@@ -24,6 +25,10 @@ async def transcribe(wav_io):
 
 #ask llm with vision
 async def ask_llm(prompt, png_bytes):
+    #turn raw png bytes into a base64 string
+    b64_png = base64.b64encode(png_bytes).decode('ascii')
+    #turn into a url payload to send to the model
+    image_payload = f'data:image/png;base64,{b64_png}'
     return (await client.chat.completions.create(
         model='gpt-4o-mini',  # cheaper vision tier
         max_tokens=100, #temporary for testing
@@ -33,8 +38,7 @@ async def ask_llm(prompt, png_bytes):
             {'role':'user',
              'content':[{'type':'text', 'text': prompt},
                         {'type':'image_url',
-                         'image_url':{'url':'data:image/png;base64,'+
-                                      png_bytes.encode('base64')}}]}
+                         'image_url':{'url': image_payload}}]}
         ]
     )).choices[0].message.content
 
