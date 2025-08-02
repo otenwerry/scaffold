@@ -98,9 +98,10 @@ def loop(stdscr):
             #take a screenshot
             png = grab_screen()
             #run the pipeline using the wav file and the screenshot
-            asyncio.run(pipeline(png, wav_io))
+            asyncio.run(pipeline(png, wav_io, stdscr))
             #restart the loop
             stdscr.addstr("Press F9 to ask.  Esc to quit.")
+            stdscr.refresh() #update the screen
         elif key == -1: #no key pressed
             time.sleep(.02)
         else: #other key pressed
@@ -110,10 +111,13 @@ def loop(stdscr):
 #main pipeline: given a screenshot and audio,
 #transcribe the audio, ask the llm, and speak the answer.
 #also print the question and answer to the console.
-async def pipeline(png, wav):
+async def pipeline(png, wav, stdscr):
     transcript = await transcribe(wav)
     answer = await ask_llm(transcript, png)
-    print(f"Q: {transcript}\nA: {answer}\n")
+    stdscr.addstr("\n")
+    stdscr.addstr(f"Q: {transcript}\n")
+    stdscr.addstr(f"A: {answer}\n")
+    stdscr.refresh() #update the screen
     await speak(answer)
 
 if __name__ == '__main__':
