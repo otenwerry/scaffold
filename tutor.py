@@ -1,4 +1,4 @@
-import asyncio, io, wave, time, base64, tempfile, curses
+import asyncio, io, wave, time, base64, tempfile, curses, re
 
 import mss, numpy as np, sounddevice as sd, simpleaudio as sa
 from openai import AsyncOpenAI
@@ -181,12 +181,23 @@ async def pipeline_streaming(png, wav, stdscr):
     transcript = await transcribe(wav)
     stdscr.addstr(f"Q: {transcript}\n")
     stdscr.refresh() #update the screen
+
     queue = asyncio.Queue()
     speaker_task = asyncio.create_task(speak_queue(queue))
+
+    buffer = ""
     async for chunk in ask_llm_streaming(transcript, png):
         stdscr.addstr(chunk)
         stdscr.refresh() #update the screen
-        await queue.put(chunk)
+
+        buffer += chunk
+        #split into sentences (ending in . or ? or !)
+        parts = re.split(r'(?<=[\.!?])\s+', buffer)
+        for sentence in parts[:-1]:
+            await queue.put(sentence.strip())
+        buffer = parts[-1]
+    if buffer.strip():
+        await queue.put(buffer.strip())
     await queue.put(None)
     await speaker_task
     stdscr.addstr("\n")
