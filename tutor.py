@@ -67,14 +67,14 @@ def loop(stdscr):
     stdscr.keypad(True)
     #return -1 if no key is pressed immediately
     stdscr.nodelay(True)
-    stdscr.addstr("Press F9 to ask.  Esc to quit.")
+    stdscr.addstr("Press F9 to ask.  Esc to quit.\n")
     while True:
         #wait for a key to be pressed
         key = stdscr.getch()
         if key == 27: #esc
             break
         elif key == curses.KEY_F9:
-            stdscr.addstr("Recording... Press F9 to stop.")
+            stdscr.addstr("Recording... Press F9 to stop.\n")
             audio_chunks = []
             #callback function to continuously record and append to audio_chunks
             def callback(indata, frames, t, status):
@@ -90,7 +90,7 @@ def loop(stdscr):
                         break
                     else:
                         continue
-            stdscr.addstr("\nRecording done.")
+            stdscr.addstr("Recording done.\n")
             #concatenate all the audio chunks
             audio = np.concatenate(audio_chunks)
             #convert to int16
@@ -109,7 +109,7 @@ def loop(stdscr):
             #run the pipeline using the wav file and the screenshot
             asyncio.run(pipeline(png, wav_io, stdscr))
             #restart the loop
-            stdscr.addstr("Press F9 to ask.  Esc to quit.")
+            stdscr.addstr("Press F9 to ask.  Esc to quit.\n")
             stdscr.refresh() #update the screen
         elif key == -1: #no key pressed
             time.sleep(.02)
@@ -123,7 +123,6 @@ def loop(stdscr):
 async def pipeline(png, wav, stdscr):
     transcript = await transcribe(wav)
     answer = await ask_llm(transcript, png)
-    stdscr.addstr("\n")
     stdscr.addstr(f"Q: {transcript}\n")
     stdscr.addstr(f"A: {answer}\n")
     stdscr.refresh() #update the screen
