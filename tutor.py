@@ -90,7 +90,7 @@ async def speak_queue(queue: asyncio.Queue):
         response = await client.audio.speech.create(
             model='tts-1', input=text, voice='alloy', response_format='wav'
         )
-        #save the response to a temporary file and play it
+        #play the response
         audio_bytes = response.read()
         #read into numpy array
         with wave.open(io.BytesIO(audio_bytes), 'rb') as wav:
@@ -100,6 +100,31 @@ async def speak_queue(queue: asyncio.Queue):
         sd.play(audio, fs)
         sd.wait()
         queue.task_done()
+
+#create the speech without playing it
+async def tts_producer(text, audio_futures: asyncio.Queue):
+    #call API
+    coro = client.audio.speech.create(
+        model='tts-1', input=text, voice='alloy', response_format='wav'
+    )
+    #create a task to run the coroutine and put it in the queue
+    task = asyncio.create_task(coro)
+    await audio_futures.put(task)
+
+#play audio from queue
+async def audio_player(audio_futures: asyncio.Queue):
+    while True:
+        fut = await audio_futures.get()
+        if fut is None:
+            break
+        audio_bytes = await fut
+        with wave.open(io.BytesIO(audio_bytes), 'rb') as wav:
+            frames = wav.readframes(wav.getnframes())
+            audio = np.frombuffer(frames, dtype=np.int16)
+            fs = wav.getframerate()
+        sd.play(audio, fs)
+        sd.wait()
+    audio_futures.task_done()
 
 
 
@@ -155,7 +180,8 @@ def loop(stdscr):
             png = grab_screen()
             #run the pipeline using the wav file and the screenshot
             #asyncio.run(pipeline(png, wav_io, stdscr))
-            asyncio.run(pipeline_streaming(png, wav_io, stdscr))
+            #asyncio.run(pipeline_streaming(png, wav_io, stdscr))
+            asyncio.run(pipeline_streaming_tts(png, wav_io, stdscr))
             #restart the loop
             stdscr.addstr("Press F9 to ask.  Esc to quit.\n")
             stdscr.refresh() #update the screen
@@ -200,6 +226,32 @@ async def pipeline_streaming(png, wav, stdscr):
         await queue.put(buffer.strip())
     await queue.put(None)
     await speaker_task
+    stdscr.addstr("\n")
+    stdscr.refresh() #update the screen
+
+#main pipeline but streaming with tts producer and audio player
+async def pipeline_streaming_tts(png, wav, stdscr):
+    transcript = await transcribe(wav)
+    stdscr.addstr(f"Q: {transcript}\n")
+    stdscr.refresh() #update the screen
+    
+    audio_futures = asyncio.Queue()
+    player_task = asyncio.create_task(audio_player(audio_futures))
+    buffer = ""
+    async for chunk in ask_llm_streaming(transcript, png):
+        stdscr.addstr(chunk)
+        stdscr.refresh() #update the screen
+
+        buffer += chunk
+        #split into sentences (ending in . or ? or !)
+        parts = re.split(r'(?<=[\.!?])\s+', buffer)
+        for sentence in parts[:-1]:
+            asyncio.create_task(tts_producer(sentence.strip()))
+        buffer = parts[-1]
+    if buffer.strip():
+        asyncio.create_task(tts_producer(buffer.strip()))
+    await audio_futures.put(None)
+    await player_task
     stdscr.addstr("\n")
     stdscr.refresh() #update the screen
 
