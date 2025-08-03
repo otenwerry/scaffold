@@ -40,6 +40,29 @@ async def ask_llm(prompt, png_bytes):
         ]
     )).choices[0].message.content
 
+#llm but streaming this time
+async def ask_llm_streaming(prompt, png_bytes):
+    b64_png = base64.b64encode(png_bytes).decode('ascii')
+    image_payload = f'data:image/png;base64,{b64_png}'
+    response = await client.chat.completions.create(
+        model='gpt-4o-mini',
+        max_tokens=500,
+        messages=[
+            {'role':'system',
+             'content':'You are a concise tutor who explains aloud.'},
+            {'role':'user',
+             'content':[{'type':'text', 'text': prompt},
+                        {'type':'image_url',
+                         'image_url':{'url': image_payload}}]}
+        ],
+        stream=True
+    )
+    async for chunk in response:
+        #delta describes what's new in the response
+        delta = chunk.choices[0].delta.content
+        if delta:
+            yield delta
+
 #text to speech with openai
 async def speak(text):
     #get response from tts model
