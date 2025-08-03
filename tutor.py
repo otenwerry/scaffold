@@ -79,6 +79,30 @@ async def speak(text):
     sd.play(audio, fs)
     sd.wait()
 
+#speak streaming
+async def speak_queue(queue: asyncio.Queue):
+    while True:
+        #get text from queue
+        text = await queue.get()
+        if text is None: 
+            break
+        #get response from tts model
+        response = await client.audio.speech.create(
+            model='tts-1', input=text, voice='alloy', response_format='wav'
+        )
+        #save the response to a temporary file and play it
+        audio_bytes = response.read()
+        #read into numpy array
+        with wave.open(io.BytesIO(audio_bytes), 'rb') as wav:
+            frames = wav.readframes(wav.getnframes())
+            audio = np.frombuffer(frames, dtype=np.int16)
+            fs = wav.getframerate()
+        sd.play(audio, fs)
+        sd.wait()
+        queue.task_done()
+
+
+
 
 
 #until the user presses esc,
@@ -130,7 +154,8 @@ def loop(stdscr):
             #take a screenshot
             png = grab_screen()
             #run the pipeline using the wav file and the screenshot
-            asyncio.run(pipeline(png, wav_io, stdscr))
+            #asyncio.run(pipeline(png, wav_io, stdscr))
+            asyncio.run(pipeline_streaming(png, wav_io, stdscr))
             #restart the loop
             stdscr.addstr("Press F9 to ask.  Esc to quit.\n")
             stdscr.refresh() #update the screen
@@ -150,6 +175,22 @@ async def pipeline(png, wav, stdscr):
     stdscr.addstr(f"A: {answer}\n")
     stdscr.refresh() #update the screen
     await speak(answer)
+
+#main pipeline but streaming
+async def pipeline_streaming(png, wav, stdscr):
+    transcript = await transcribe(wav)
+    stdscr.addstr(f"Q: {transcript}\n")
+    stdscr.refresh() #update the screen
+    queue = asyncio.Queue()
+    speaker_task = asyncio.create_task(speak_queue(queue))
+    async for chunk in ask_llm_streaming(transcript, png):
+        stdscr.addstr(chunk)
+        stdscr.refresh() #update the screen
+        await queue.put(chunk)
+    await queue.put(None)
+    await speaker_task
+    stdscr.addstr("\n")
+    stdscr.refresh() #update the screen
 
 if __name__ == '__main__':
     #sets up the terminal for curses use, allocates a standard screen object (stdscr),
