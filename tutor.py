@@ -61,10 +61,10 @@ async def tts_producer(text, audio_futures: asyncio.Queue):
 async def audio_player(audio_futures: asyncio.Queue):
     while True:
         #get the audio task from the queue (or break if we're done)
-        audio = await audio_futures.get()
-        if audio is None:
+        audio_task = await audio_futures.get()
+        if audio_task is None:
             break
-        response = await audio
+        response = await audio_task
         audio_bytes = response.read()
         #read the bytes into a numpy array
         with wave.open(io.BytesIO(audio_bytes), 'rb') as wav:
@@ -143,23 +143,30 @@ def loop(stdscr):
 #transcribe the audio, ask the llm, and speak the answer.
 #also print the question and answer to the console.
 async def pipeline(png, wav, stdscr):
+    #transcribe the audio and print to terminal
     transcript = await transcribe(wav)
     stdscr.addstr(f"Q: {transcript}\n")
     stdscr.refresh() #update the screen
-    
+    #create a queue to store audio tasks
     audio_futures = asyncio.Queue()
+    #create a task to play the audio
     player_task = asyncio.create_task(audio_player(audio_futures))
+    #buffer to store the answer as it comes in
     buffer = ""
+    #print the answer as it comes in
     async for chunk in ask_llm(transcript, png):
         stdscr.addstr(chunk)
         stdscr.refresh() #update the screen
-
+        #add the chunk to the buffer
         buffer += chunk
         #split into sentences (ending in . or ? or !)
         parts = re.split(r'(?<=[\.!?])\s+', buffer)
+        #create a task to speak each sentence
         for sentence in parts[:-1]:
             asyncio.create_task(tts_producer(sentence.strip(), audio_futures))
+        #update the buffer with the last part
         buffer = parts[-1]
+    #speak the last part
     if buffer.strip():
         await tts_producer(buffer.strip(), audio_futures)
     await audio_futures.put(None)
