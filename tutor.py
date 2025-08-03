@@ -4,6 +4,10 @@ import mss, numpy as np, sounddevice as sd, simpleaudio as sa
 from openai import AsyncOpenAI
 
 #instantiate async client (necessary for async functions)
+#async functions are functions that can be run concurrently with other code,
+#to avoid the program freezing while waiting for the function to return.
+#for example, on the transcribe function, if it wasn't async you wouldn't
+#be able to quit while waiting for the model to respond.
 client = AsyncOpenAI()
 
 #screen capture
@@ -13,15 +17,13 @@ def grab_screen() -> bytes:
         return mss.tools.to_png(img.rgb, img.size)
 
 #speech to text with whisper
-#made async so that other code can run while this is running,
-#to avoid the program freezing while waiting for the model to respond.
-#(for example, without this you wouldn't be able to quit while waiting for the model to respond)
 async def transcribe(wav_io):
     return (await client.audio.transcriptions.create(
         model='whisper-1', file=wav_io
     )).text
 
-#llm but streaming this time
+#ask llm a question with a screenshot of the current screen.
+#it "yields" its answer as a stream, rather than waiting for the entire response.
 async def ask_llm(prompt, png_bytes):
     b64_png = base64.b64encode(png_bytes).decode('ascii')
     image_payload = f'data:image/png;base64,{b64_png}'
@@ -44,7 +46,8 @@ async def ask_llm(prompt, png_bytes):
         if delta:
             yield delta
 
-#create the speech without playing it
+#takes in text, calls the tts model, and puts the response in a queue.
+#queueing allows us to compute audio sentence-by-sentence rather than waiting for the entire response.
 async def tts_producer(text, audio_futures: asyncio.Queue):
     #call API
     coro = client.audio.speech.create(
@@ -54,21 +57,24 @@ async def tts_producer(text, audio_futures: asyncio.Queue):
     task = asyncio.create_task(coro)
     await audio_futures.put(task)
 
-#play audio from queue
+#plays audio from a queue
 async def audio_player(audio_futures: asyncio.Queue):
     while True:
-        fut = await audio_futures.get()
-        if fut is None:
+        #get the audio task from the queue (or break if we're done)
+        audio = await audio_futures.get()
+        if audio is None:
             break
-        response = await fut
+        response = await audio
         audio_bytes = response.read()
+        #read the bytes into a numpy array
         with wave.open(io.BytesIO(audio_bytes), 'rb') as wav:
             frames = wav.readframes(wav.getnframes())
             audio = np.frombuffer(frames, dtype=np.int16)
             fs = wav.getframerate()
+        #play the audio and mark the task as done
         sd.play(audio, fs)
         sd.wait()
-    audio_futures.task_done()
+        audio_futures.task_done()
 
 
 
