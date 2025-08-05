@@ -1,6 +1,6 @@
 import asyncio, io, wave, time, base64, tempfile, curses, re
 
-import mss, numpy as np, sounddevice as sd, simpleaudio as sa
+import mss, numpy as np, sounddevice as sd
 from openai import AsyncOpenAI
 
 #instantiate async client (necessary for async functions)
@@ -32,7 +32,7 @@ async def ask_llm(prompt, png_bytes):
         max_tokens=500,
         messages=[
             {'role':'system',
-             'content':'You are a concise tutor who explains aloud.'},
+             'content':'You are a concise tutor who explains aloud. Use one or two sentences per answer.'},
             {'role':'user',
              'content':[{'type':'text', 'text': prompt},
                         {'type':'image_url',
