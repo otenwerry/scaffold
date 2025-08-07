@@ -58,7 +58,7 @@ async def tts(text, audio_futures: asyncio.Queue):
     await audio_futures.put(task)
 
 #plays audio from a queue
-async def play_audio(audio_futures: asyncio.Queue):
+async def play(audio_futures: asyncio.Queue):
     while True:
         #get the audio task from the queue (or break if we're done)
         audio_task = await audio_futures.get()
@@ -150,7 +150,7 @@ async def pipeline(png, wav, stdscr):
     #create a queue to store audio tasks
     audio_futures = asyncio.Queue()
     #create a task to play the audio
-    player_task = asyncio.create_task(play_audio(audio_futures))
+    player_task = asyncio.create_task(play(audio_futures))
     #buffer to store the answer as it comes in
     buffer = ""
     #print the answer as it comes in
