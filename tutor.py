@@ -78,6 +78,8 @@ async def audio_player(audio_futures: asyncio.Queue):
 
 
 
+
+
 #until the user presses esc,
 #wait for f9, grab the screen, record the audio, and run the pipeline.
 def loop(stdscr):
@@ -87,18 +89,14 @@ def loop(stdscr):
     stdscr.keypad(True)
     #return -1 if no key is pressed immediately
     stdscr.nodelay(True)
-    stdscr.addstr("Press 'f' to ask.  Esc to quit.\n")
-    stdscr.refresh()
+    stdscr.addstr("Press F9 to ask.  Esc to quit.\n")
     while True:
         #wait for a key to be pressed
         key = stdscr.getch()
         if key == 27: #esc
             break
-        
-        #elif key == curses.KEY_F9:
-        elif key == ord('f'):
-            stdscr.addstr("Recording... Press 'f' to stop.\n")
-            stdscr.refresh()
+        elif key == curses.KEY_F9:
+            stdscr.addstr("Recording... Press F9 to stop.\n")
             audio_chunks = []
             #callback function to continuously record and append to audio_chunks
             def callback(indata, frames, t, status):
@@ -106,22 +104,15 @@ def loop(stdscr):
             #create an audio input stream using the callback function
             with sd.InputStream(callback=callback, channels=1, samplerate=16_000):
                 #run until f9 is released
-               """ while True:
+                while True:
                     k = stdscr.getch()
                     if k == -1:
                         time.sleep(.02)
-                    #elif k == curses.KEY_F9:
-                    elif k == ord('f'):
+                    elif k == curses.KEY_F9:
                         break
                     else:
-                        continue"""
-               while True:
-                   k = stdscr.getch()
-                   if k in(ord('f'), 27):
-                       break
-                   curses.napms(20)
+                        continue
             stdscr.addstr("Recording done.\n")
-            stdscr.refresh()
             #concatenate all the audio chunks
             audio = np.concatenate(audio_chunks)
             #convert to int16
@@ -140,7 +131,7 @@ def loop(stdscr):
             #run the pipeline using the wav file and the screenshot
             asyncio.run(pipeline(png, wav_io, stdscr))
             #restart the loop
-            stdscr.addstr("Press 'f' to ask.  Esc to quit.\n")
+            stdscr.addstr("Press F9 to ask.  Esc to quit.\n")
             stdscr.refresh() #update the screen
         elif key == -1: #no key pressed
             time.sleep(.02)
