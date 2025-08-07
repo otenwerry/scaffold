@@ -1,5 +1,5 @@
 import asyncio, threading, logging
-from tutor import screenshot, record, pipeline
+from core import screenshot, record, pipeline
 
 _log = logging.getLogger("tutor ai")
 

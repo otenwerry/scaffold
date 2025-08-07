@@ -1,5 +1,11 @@
 import curses, asyncio, time
-from tutor import screenshot, record, pipeline
+from core import screenshot, record, pipeline
+import platform
+
+IS_WINDOWS = platform.system() == "Windows"
+
+if IS_WINDOWS:
+    curses.KEY_F9 = ord('a')
 
 def loop(stdscr):
     #enter cbreak mode to make characters immediately available instead of waiting for enter
@@ -8,21 +14,22 @@ def loop(stdscr):
     stdscr.keypad(True)
     #return -1 if no key is pressed immediately
     stdscr.nodelay(True)
-    stdscr.addstr("Press F9 to ask.  Esc to quit.\n")
+    trigger = "A" if IS_WINDOWS else "F9"
+    stdscr.addstr(f"Press {trigger} to ask.  Esc to quit.\n")
     while True:
         #wait for a key to be pressed
         key = stdscr.getch()
         if key == 27: #esc
             break
         elif key == curses.KEY_F9:
-            stdscr.addstr("Recording... Press F9 to stop.\n")
+            stdscr.addstr(f"Recording... Press {trigger} to stop.\n")
             wav = record(stdscr)
             #take a screenshot
             png = screenshot()
             #run the pipeline using the wav file and the screenshot
             asyncio.run(pipeline(png, wav, stdscr))
             #restart the loop
-            stdscr.addstr("Press F9 to ask.  Esc to quit.\n")
+            stdscr.addstr(f"Press {trigger} to ask.  Esc to quit.\n")
             stdscr.refresh() #update the screen
         else: #other key pressed or no key pressed
             time.sleep(.02)
