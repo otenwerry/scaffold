@@ -11,20 +11,20 @@ from openai import AsyncOpenAI
 client = AsyncOpenAI()
 
 #screen capture
-def grab_screen() -> bytes:
+def screenshot() -> bytes:
     with mss.mss() as sct:
         img = sct.grab(sct.monitors[0]) #full display
         return mss.tools.to_png(img.rgb, img.size)
 
 #speech to text with whisper
-async def transcribe(wav_io):
+async def stt(wav_io):
     return (await client.audio.transcriptions.create(
         model='whisper-1', file=wav_io
     )).text
 
 #ask llm a question with a screenshot of the current screen.
 #it "yields" its answer as a stream, rather than waiting for the entire response.
-async def ask_llm(prompt, png_bytes):
+async def llm(prompt, png_bytes):
     b64_png = base64.b64encode(png_bytes).decode('ascii')
     image_payload = f'data:image/png;base64,{b64_png}'
     response = await client.chat.completions.create(
@@ -48,7 +48,7 @@ async def ask_llm(prompt, png_bytes):
 
 #takes in text, calls the tts model, and puts the response in a queue.
 #queueing allows us to compute audio sentence-by-sentence rather than waiting for the entire response.
-async def tts_producer(text, audio_futures: asyncio.Queue):
+async def tts(text, audio_futures: asyncio.Queue):
     #call API
     coro = client.audio.speech.create(
         model='tts-1', input=text, voice='alloy', response_format='wav'
@@ -58,7 +58,7 @@ async def tts_producer(text, audio_futures: asyncio.Queue):
     await audio_futures.put(task)
 
 #plays audio from a queue
-async def audio_player(audio_futures: asyncio.Queue):
+async def play_audio(audio_futures: asyncio.Queue):
     while True:
         #get the audio task from the queue (or break if we're done)
         audio_task = await audio_futures.get()
@@ -127,7 +127,7 @@ def loop(stdscr):
             wav_io.seek(0)
             wav_io.name = "audio.wav"
             #take a screenshot
-            png = grab_screen()
+            png = screenshot()
             #run the pipeline using the wav file and the screenshot
             asyncio.run(pipeline(png, wav_io, stdscr))
             #restart the loop
@@ -144,17 +144,17 @@ def loop(stdscr):
 #also print the question and answer to the console.
 async def pipeline(png, wav, stdscr):
     #transcribe the audio and print to terminal
-    transcript = await transcribe(wav)
+    transcript = await stt(wav)
     stdscr.addstr(f"Q: {transcript}\n")
     stdscr.refresh() #update the screen
     #create a queue to store audio tasks
     audio_futures = asyncio.Queue()
     #create a task to play the audio
-    player_task = asyncio.create_task(audio_player(audio_futures))
+    player_task = asyncio.create_task(play_audio(audio_futures))
     #buffer to store the answer as it comes in
     buffer = ""
     #print the answer as it comes in
-    async for chunk in ask_llm(transcript, png):
+    async for chunk in llm(transcript, png):
         stdscr.addstr(chunk)
         stdscr.refresh() #update the screen
         #add the chunk to the buffer
@@ -163,12 +163,12 @@ async def pipeline(png, wav, stdscr):
         parts = re.split(r'(?<=[\.!?])\s+', buffer)
         #create a task to speak each sentence
         for sentence in parts[:-1]:
-            asyncio.create_task(tts_producer(sentence.strip(), audio_futures))
+            asyncio.create_task(tts(sentence.strip(), audio_futures))
         #update the buffer with the last part
         buffer = parts[-1]
     #speak the last part
     if buffer.strip():
-        await tts_producer(buffer.strip(), audio_futures)
+        await tts(buffer.strip(), audio_futures)
     await audio_futures.put(None)
     await player_task
     stdscr.addstr("\n")
