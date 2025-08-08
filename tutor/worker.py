@@ -4,6 +4,13 @@ from core import screenshot, record, pipeline
 
 _log = logging.getLogger("tutor ai")
 
+class DummyScreen:
+    def addstr(self, s):
+        _log.info(s.rstrip("\n"))
+    
+    def refresh(self):
+        pass
+
 class BackgroundWorker:
     def __init__(self):
         self.loop = asyncio.new_event_loop()
@@ -21,5 +28,5 @@ class BackgroundWorker:
     
     async def _job(self):
         png = screenshot()
-        wav = record()
-        await pipeline(png, wav, _log.info)
+        wav = await self.loop.run_in_executor(None, record)
+        await pipeline(png, wav, DummyScreen())
