@@ -33,4 +33,14 @@ icon = pystray.Icon("tutor", icon_img, "Tutor AI", menu=pystray.Menu(
     pystray.MenuItem("Quit", on_quit),
 ))
 
-icon.run()
+def run_tray():
+    icon.visible = True
+    icon.run_detached()
+
+def main():
+    run_tray()
+    with pk.Listener(on_press=on_press) as listener:
+        listener.join()
+
+if __name__ == "__main__":
+    main()
