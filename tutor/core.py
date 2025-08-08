@@ -2,6 +2,10 @@ import asyncio, io, wave, time, base64, tempfile, curses, re
 
 import mss, numpy as np, sounddevice as sd
 from openai import AsyncOpenAI
+import contextlib
+#import keyboard
+from pynput import keyboard as pk
+import threading
 
 #instantiate async client (necessary for async functions)
 #async functions are functions that can be run concurrently with other code,
@@ -15,24 +19,33 @@ def screenshot() -> bytes:
         img = sct.grab(sct.monitors[0]) #full display
         return mss.tools.to_png(img.rgb, img.size)
 
-def record(stdscr, sr=16_000):
+#if stdscr is not given, use keyboard
+def record(stdscr = None, sr=16_000):
     audio_chunks = []
     #callback function to continuously record and append to audio_chunks
     def callback(indata, frames, t, status):
         audio_chunks.append(indata.copy())
-    #create an audio input stream using the callback function
-    with sd.InputStream(callback=callback, channels=1, samplerate=sr):
-        #run until f9 is released
-        while True:
-            k = stdscr.getch()
-            if k == -1:
+    if stdscr is None:
+        print("**HOLD** f9 to record.\n")
+        with sd.InputStream(callback=callback, channels=1, samplerate=sr):
+            keyboard.wait('f9')
+            while keyboard.is_pressed('f9'):
                 time.sleep(.02)
-            elif k == curses.KEY_F9:
-                break
-            else:
-                continue
-    stdscr.addstr("Recording done.\n")
-    stdscr.refresh()
+        print("Recording done.\n")
+    else:
+        #create an audio input stream using the callback function
+        with sd.InputStream(callback=callback, channels=1, samplerate=sr):
+            #run until f9 is released
+            while True:
+                k = stdscr.getch()
+                if k == -1:
+                    time.sleep(.02)
+                elif k == curses.KEY_F9:
+                    break
+                else:
+                    continue
+        stdscr.addstr("Recording done.\n")
+        stdscr.refresh()
     #concatenate all the audio chunks
     audio = np.concatenate(audio_chunks)
     #convert to int16
