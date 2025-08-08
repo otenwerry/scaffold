@@ -6,24 +6,24 @@ import contextlib
 #import keyboard
 from pynput import keyboard as pk
 import threading
-
+import signal
 #instantiate async client (necessary for async functions)
 #async functions are functions that can be run concurrently with other code,
 #to avoid the program freezing while waiting for the function to return.
 #for example, on the transcribe function, if it wasn't async you wouldn't
 #be able to quit while waiting for the model to respond.
 client = AsyncOpenAI()
-
+"""
 stop_playback = False
 
 def cutoff(key):
     global stop_playback
-    if key in (pk.Key.esc, pk.KeyCode.from_char('s')):
+    if key in (pk.KeyCode.from_char('s')):
         stop_playback = True
         sd.stop() # immediately cut ongoing sd.play()
 listener = pk.Listener(on_press=cutoff)
 listener.daemon = True
-listener.start()
+listener.start()"""
 
 def screenshot() -> bytes:
     with mss.mss() as sct:
@@ -111,8 +111,8 @@ async def tts(text, audio_futures: asyncio.Queue):
     await audio_futures.put(task)
 
 async def play(audio_futures: asyncio.Queue):
-    global stop_playback
     while True:
+
         #get the audio task from the queue (or break if we're done)
         audio_task = await audio_futures.get()
         if audio_task is None:
@@ -126,9 +126,8 @@ async def play(audio_futures: asyncio.Queue):
             fs = wav.getframerate()
         #play the audio and mark the task as done
         sd.play(audio, fs)
-        while not stop_playback:    
-            sd.wait()
-        stop_playback = False
+        sd.wait()
+
         audio_futures.task_done()
 
 #main pipeline: given a screenshot and audio,
@@ -146,7 +145,7 @@ async def pipeline(png, wav, stdscr):
     #buffer to store the answer as it comes in
     buffer = ""
     #print the answer as it comes in
-    async for chunk in llm(transcript, png):
+    async for chunk in llm(transcript, png):  
         stdscr.addstr(chunk)
         stdscr.refresh() #update the screen
         #add the chunk to the buffer

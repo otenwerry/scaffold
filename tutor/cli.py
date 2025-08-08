@@ -29,7 +29,7 @@ def loop(stdscr):
             #run the pipeline using the wav file and the screenshot
             asyncio.run(pipeline(png, wav, stdscr))
             #restart the loop
-            stdscr.addstr(f"Press {trigger} to ask.  Esc to quit. S to skip.\n")
+            stdscr.addstr(f"Press {trigger} to ask.  Esc to quit.\n")
             stdscr.refresh() #update the screen
         else: #other key pressed or no key pressed
             time.sleep(.02)
