@@ -1,7 +1,8 @@
 import pystray, pathlib, sys, logging
 from PIL import Image
 from worker import BackgroundWorker
-import keyboard
+#import keyboard
+from pynput import keyboard as pk
 
 logging.basicConfig(filename="tutor.log", level=logging.INFO)
 
@@ -17,7 +18,15 @@ def on_quit(icon, item):
     icon.stop()
     sys.exit(0)
 
-keyboard.add_hotkey("f9", worker.ask)
+def on_press(key):
+    if key == pk.Key.f9:
+        worker.ask()
+
+listener = pk.Listener(on_press=on_press)
+listener.daemon = True
+listener.start()
+
+#keyboard.add_hotkey("f9", worker.ask)
 
 icon = pystray.Icon("tutor", icon_img, "Tutor AI", menu=pystray.Menu(
     pystray.MenuItem("Ask (F9)", on_ask, default=True),
