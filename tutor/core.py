@@ -14,6 +14,17 @@ import threading
 #be able to quit while waiting for the model to respond.
 client = AsyncOpenAI()
 
+stop_playback = False
+
+def cutoff(key):
+    global stop_playback
+    if key in (pk.Key.esc, pk.KeyCode.from_char('s')):
+        stop_playback = True
+        sd.stop() # immediately cut ongoing sd.play()
+listener = pk.Listener(on_press=cutoff)
+listener.daemon = True
+listener.start()
+
 def screenshot() -> bytes:
     with mss.mss() as sct:
         img = sct.grab(sct.monitors[0]) #full display
@@ -75,7 +86,7 @@ async def llm(prompt, png_bytes):
         max_tokens=500,
         messages=[
             {'role':'system',
-             'content':'You are a concise and helpful tutor who can see the user\'s screen andexplains aloud. Use one or two sentences per answer.'},
+             'content':'You are a concise and helpful tutor who can see the user\'s screen andexplains aloud. Use one or two sentences per answer. Give the user some ideas for what to do next or questions they could ask to learn more about what they are looking at.'},
             {'role':'user',
              'content':[{'type':'text', 'text': prompt},
                         {'type':'image_url',
@@ -100,6 +111,7 @@ async def tts(text, audio_futures: asyncio.Queue):
     await audio_futures.put(task)
 
 async def play(audio_futures: asyncio.Queue):
+    global stop_playback
     while True:
         #get the audio task from the queue (or break if we're done)
         audio_task = await audio_futures.get()
@@ -114,7 +126,9 @@ async def play(audio_futures: asyncio.Queue):
             fs = wav.getframerate()
         #play the audio and mark the task as done
         sd.play(audio, fs)
-        sd.wait()
+        while not stop_playback:    
+            sd.wait()
+        stop_playback = False
         audio_futures.task_done()
 
 #main pipeline: given a screenshot and audio,
