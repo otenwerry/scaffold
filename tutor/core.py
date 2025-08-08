@@ -62,7 +62,7 @@ async def llm(prompt, png_bytes):
         max_tokens=500,
         messages=[
             {'role':'system',
-             'content':'You are a concise tutor who explains aloud. Use one or two sentences per answer.'},
+             'content':'You are a concise and helpful tutor who can see the user\'s screen andexplains aloud. Use one or two sentences per answer.'},
             {'role':'user',
              'content':[{'type':'text', 'text': prompt},
                         {'type':'image_url',
