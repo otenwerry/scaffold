@@ -27,27 +27,11 @@ def record(stdscr = None, sr=16_000):
         audio_chunks.append(indata.copy())
     if stdscr is None:
         print("**HOLD** f9 to record.\n")
-        pressed = threading.Event()
-        released = threading.Event()
-        def _on_press(key):
-            if key == pk.Key.f9:
-                pressed.set()
-        def _on_release(key):
-            if key == pk.Key.f9:
-                released.set()
-                return False
-        with pk.Listener(on_press=_on_press, on_release=_on_release) as listener:
-            pressed.wait()
-            with sd.InputStream(callback=callback, channels=1, samplerate=sr):
-                listener.join()
-        print("Recording done.\n")
-        '''
         with sd.InputStream(callback=callback, channels=1, samplerate=sr):
             keyboard.wait('f9')
             while keyboard.is_pressed('f9'):
                 time.sleep(.02)
         print("Recording done.\n")
-        '''
     else:
         #create an audio input stream using the callback function
         with sd.InputStream(callback=callback, channels=1, samplerate=sr):
