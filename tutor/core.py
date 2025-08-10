@@ -13,17 +13,6 @@ import signal
 #for example, on the transcribe function, if it wasn't async you wouldn't
 #be able to quit while waiting for the model to respond.
 client = AsyncOpenAI()
-"""
-stop_playback = False
-
-def cutoff(key):
-    global stop_playback
-    if key in (pk.KeyCode.from_char('s')):
-        stop_playback = True
-        sd.stop() # immediately cut ongoing sd.play()
-listener = pk.Listener(on_press=cutoff)
-listener.daemon = True
-listener.start()"""
 
 def screenshot() -> bytes:
     with mss.mss() as sct:
