@@ -7,6 +7,7 @@ import mss
 import asyncio
 from openai import AsyncOpenAI
 from concurrent.futures import ThreadPoolExecutor
+from pynput import keyboard as pk
 
 SR = 16000
 
@@ -27,7 +28,7 @@ class TutorTray(rumps.App):
         self._last_rms = 0.0
         self._frames = 0
         self._last_cb_log = 0.0
-
+ 
         #pipeline state
         self.processing = False
 
@@ -35,7 +36,7 @@ class TutorTray(rumps.App):
         self.executor = ThreadPoolExecutor(max_workers=2)
 
         # Menu items
-        self.ask = rumps.MenuItem("Start Asking", callback=self.on_ask, key="space")
+        self.ask = rumps.MenuItem("Start Asking", callback=self.on_ask, key="<f9>")
         self.is_asking = False
         self.separator = rumps.separator
         self.status = rumps.MenuItem("Status: Ready")
@@ -44,6 +45,19 @@ class TutorTray(rumps.App):
             self.separator,
             self.status
         ]
+
+        # hotkey for recording
+        self._ghk = pk.GlobalHotKeys({
+            '<f9>': self._toggle_record_hotkey 
+        })
+        self._ghk.daemon = True
+        self._ghk.start()
+
+    def _toggle_record_hotkey(self, injected=False):
+        if self.is_recording:
+            self._stop_recording_and_process()
+        else:
+            self._start_recording()
 
     def _audio_cb(self, indata, frames, t, status):
         if status:
@@ -234,7 +248,7 @@ class TutorTray(rumps.App):
             self.play_audio(result['audio_response'])
             
             # Store results for UI update
-            self._pending_pipeline_update = {
+            self._pending_pispeline_update = {
                 'success': True,
                 'transcript': result['transcript'],
                 'response': result['response']
