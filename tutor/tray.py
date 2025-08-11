@@ -69,9 +69,15 @@ class TutorTray(rumps.App):
             async for chunk in self._llm(transcript, screenshot):
                 response += chunk
             audio_response = await self._tts(response)
-            return transcript, response, audio_response
+            return {
+                'transcript': transcript,
+                'response': response,
+                'audio_response': audio_response
+            }
         except Exception as e:
-            return str(e)
+            return {
+                'error': str(e)
+            }
     
     async def _stt(self, recording):
         recording.seek(0)
@@ -219,16 +225,19 @@ class TutorTray(rumps.App):
     def _on_pipeline_complete(self, future):
         try:
             result = future.result()
-            transcript, response, audio_response = result
+            if 'error' in result:
+                rumps.alert("Error", f"An error occurred: {result['error']}")
+                self.status.title = "Status: Error"
+                return
             
             # Play audio response
-            self.play_audio(audio_response)
+            self.play_audio(result['audio_response'])
             
             # Store results for UI update
             self._pending_pipeline_update = {
                 'success': True,
-                'transcript': transcript,
-                'response': response
+                'transcript': result['transcript'],
+                'response': result['response']
             }
         except Exception as e:
             self._pending_pipeline_update = {
