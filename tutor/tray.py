@@ -29,8 +29,6 @@ class TutorTray(rumps.App):
         self._last_cb_log = 0.0
 
         #pipeline state
-        self.screenshot = None
-        self.saved_recording = None
         self.processing = False
 
         # Thread pool for async operations
@@ -39,25 +37,13 @@ class TutorTray(rumps.App):
         # Menu items
         self.ask = rumps.MenuItem("Start Asking", callback=self.on_ask, key="space")
         self.is_asking = False
-        self.say_hello = rumps.MenuItem("Say Hello", callback=self.on_hello)
-        self.record_button = rumps.MenuItem("Start Recording", callback=self.on_record)
-        self.screenshot_button = rumps.MenuItem("Take Screenshot", callback=self.on_screenshot)
-        self.ask_button = rumps.MenuItem("Ask AI", callback=self.on_ask_ai)
-        self.ask_button.set_callback(None)  # Initially disabled
         self.separator = rumps.separator
         self.status = rumps.MenuItem("Status: Ready")
         self.menu = [
             self.ask,
-            self.say_hello,
-            self.record_button,
-            self.screenshot_button,
-            self.ask_button,
             self.separator,
             self.status
         ]
-
-    def on_hello(self, _):
-        rumps.alert("hello world")
 
     def _audio_cb(self, indata, frames, t, status):
         if status:
@@ -76,112 +62,6 @@ class TutorTray(rumps.App):
             self._last_cb_log = now
             print(f"[cb] frames+={frames}, total={self._frames}, rms={rms:.5f}")
 
-    def on_record(self, _):
-        if self.is_recording:
-            self.stop_recording()
-        else:
-            self.start_recording()
-
-    def start_recording(self):
-        if self.is_recording:
-            return
-        self._buf.clear()
-        self._frames = 0
-        # float32 is fine; we'll convert to int16 on save
-        self._stream = sd.InputStream(samplerate=SR, channels=1, dtype="float32", callback=self._audio_cb)
-        self._stream.start()
-        self.is_recording = True
-        self.record_button.title = "Stop Recording"
-        self.status.title = "Status: Recording"
-        rumps.notification("Tutor", "", "Recording…")
-
-    def stop_recording(self):
-        if not self.is_recording:
-            return
-        try:
-            if self._stream:
-                self._stream.stop()
-                self._stream.close()
-        finally:
-            self._stream = None
-            self.is_recording = False
-            self.record_button.title = "Start Recording"
-        # collapse buffer --> wav
-        with self._lock:
-            audio = np.concatenate(self._buf, axis=0) if self._buf else np.zeros((0, 1), dtype="float32")
-
-        if audio.size == 0:
-            self.status.title = "Status: No audio captured"
-            rumps.notification("Tutor", "", "No audio captured.")
-            return
-        
-        # debug summary before write
-        peak = float(np.max(np.abs(audio))) if audio.size else 0.0
-        secs = audio.shape[0] / SR
-        print(f"[stop] samples={audio.shape[0]}, secs={secs:.2f}, peak={peak:.4f}")
-
-
-        audio_int16 = (audio.flatten() * 32767).astype(np.int16)
-        #tmp = tempfile.NamedTemporaryFile(prefix="tutor-", suffix=".wav", delete=False)
-        wav_io = io.BytesIO()
-        with wave.open(wav_io, "wb") as wf:
-            wf.setnchannels(1)
-            wf.setsampwidth(2)
-            wf.setframerate(SR)
-            wf.writeframes(audio_int16.tobytes())
-        wav_io.seek(0)
-        wav_io.name = "tutor-recording.wav"
-        self.saved_recording = wav_io
-        self.status.title = "Status: Recording saved"
-        self._update_ask_button()
-        rumps.notification("Tutor", "", f"Saved WAV: {wav_io.name}")
-
-    #new functions that aren't in HelloTray
-    def on_screenshot(self, _):
-        with mss.mss() as sct:
-            img = sct.grab(sct.monitors[0])  
-            png_bytes = mss.tools.to_png(img.rgb, img.size)
-        self.screenshot = png_bytes
-        self.status.title = "Status: Screenshot taken"
-        self._update_ask_button()
-        rumps.notification("Tutor", "", "Screenshot taken")
-    
-    def _update_ask_button(self):
-        if self.saved_recording and self.screenshot and not self.processing:
-            self.ask_button.set_callback(self.on_ask_ai)
-            self.ask_button.title = "Ask AI (ready)"
-        else:
-            self.ask_button.set_callback(None)
-            if self.processing:
-                self.ask_button.title = "Ask AI (processing)"
-            elif not self.saved_recording:
-                self.ask_button.title = "Ask AI (no recording)"
-            elif not self.screenshot:
-                self.ask_button.title = "Ask AI (no screenshot)"
-
-    def on_ask_ai(self, _):
-        if not self.saved_recording or not self.screenshot:
-            rumps.alert("Missing data", "Please record and take a screenshot first.")
-            return
-        if self.processing:
-            return
-        self.processing = True
-        self.status.title = "Status: Processing…"
-        self._update_ask_button()
-        future = self.executor.submit(self._run_pipeline)
-        future.add_done_callback(self._on_pipeline_complete)
-    
-    def _run_pipeline(self):
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        try:
-            result = loop.run_until_complete(
-                self._async_pipeline(self.screenshot, self.saved_recording)
-            )
-            return result
-        finally:
-            loop.close()
-    
     async def _async_pipeline(self, screenshot, recording):
         try:
             transcript = await self._stt(recording)
@@ -237,41 +117,6 @@ class TutorTray(rumps.App):
         )
         return response.read()
     
-    def _on_pipeline_complete(self, future):
-        try:
-            transcript, response, audio_response = future.result()
-            self.play_audio(audio_response)
-            self._pending_ui_update = {
-                'success': True,
-                'transcript': transcript,
-                'response': response
-            }
-        except Exception as e:
-            self._pending_ui_update = {
-                'success': False,
-                'error': str(e)
-            }
-        rumps.Timer(self._update_ui_from_pipeline, 0.01).start()
-
-    def _update_ui_from_pipeline(self, _):
-        if hasattr(self, '_pending_ui_update'):
-            update = self._pending_ui_update
-            if update['success']:
-                rumps.notification(
-                    "Tutor AI Response",
-                    f"Q: {update['transcript'][:50]}...",
-                    f"A: {update['response'][:100]}..."
-                )
-                self.status.title = "Status: Complete"
-                self.saved_recording = None
-                self.screenshot = None
-            else:
-                rumps.alert("Error", f"An error occurred: {update['error']}")
-                self.status.title = "Status: Error"
-            del self._pending_ui_update
-            self.processing = False
-            self._update_ask_button()
-
     def play_audio(self, audio_bytes):
         try:
             with wave.open(io.BytesIO(audio_bytes), 'rb') as wav:
@@ -414,31 +259,6 @@ class TutorTray(rumps.App):
             
             del self._pending_integrated_update
             self.processing = False
-
-    def _update_ui_from_pipeline(self, _):
-        """Update UI elements on the main thread after pipeline completes"""
-        if hasattr(self, '_pending_ui_update'):
-            update = self._pending_ui_update
-            
-            if update['success']:
-                # Success case
-                rumps.notification(
-                    "Tutor AI Response",
-                    f"Q: {update['transcript'][:50]}...",
-                    f"A: {update['response'][:100]}..."
-                )
-                self.status.title = "Status: Complete"
-                self.saved_recording = None
-                self.screenshot = None
-            else:
-                # Error case
-                rumps.alert("Error", f"An error occurred: {update['error']}")
-                self.status.title = "Status: Error"
-            
-            # Clean up
-            del self._pending_ui_update
-            self.processing = False
-            self._update_ask_button()
 
 if __name__ == "__main__":
     app = TutorTray()
