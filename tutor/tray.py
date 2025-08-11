@@ -248,7 +248,7 @@ class TutorTray(rumps.App):
                 'success': False,
                 'error': str(e)
             }
-        rumps.Timer(0.01, self._update_ui_from_pipeline).start()
+        rumps.Timer(self._update_ui_from_pipeline, 0.01).start()
 
     def _update_ui_from_pipeline(self, _):
         if hasattr(self, '_pending_ui_update'):
