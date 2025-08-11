@@ -143,6 +143,7 @@ class TutorTray(rumps.App):
         self.executor = ThreadPoolExecutor(max_workers=2)
 
         # Menu items
+        self.say_hello = rumps.MenuItem("Say Hello", callback=self.on_hello)
         self.record_button = rumps.MenuItem("Start Recording", callback=self.on_record)
         self.screenshot_button = rumps.MenuItem("Take Screenshot", callback=self.on_screenshot)
         self.ask_button = rumps.MenuItem("Ask AI", callback=self.on_ask_ai)
@@ -150,12 +151,16 @@ class TutorTray(rumps.App):
         self.separator = rumps.separator
         self.status = rumps.MenuItem("Status: Ready")
         self.menu = [
+            self.say_hello,
             self.record_button,
             self.screenshot_button,
             self.ask_button,
             self.separator,
             self.status
         ]
+
+    def on_hello(self, _):
+        rumps.alert("hello world")
 
     def _audio_cb(self, indata, frames, t, status):
         if status:
