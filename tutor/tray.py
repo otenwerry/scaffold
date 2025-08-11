@@ -128,19 +128,18 @@ class TutorTray(rumps.App):
         except Exception as e:
             print(f"Audio playback error: {e}")
 
-
     def on_ask(self, _):
         if not self.is_asking:
             self.is_asking = True
             self.ask.title = "Stop Asking"
-            self._start_integrated_recording()
+            self._start_recording()
             rumps.notification("Tutor", "", "Asking…")
         else:
             self.is_asking = False
             self.ask.title = "Start Asking"
             self._stop_recording_and_process()
     
-    def _start_integrated_recording(self):
+    def _start_recording(self):
         if self.is_recording:
             return
         self._buf.clear()
@@ -200,13 +199,13 @@ class TutorTray(rumps.App):
         
         # Run the pipeline
         future = self.executor.submit(
-            self._run_integrated_pipeline, 
+            self._run_pipeline, 
             png_bytes, 
             wav_io
         )
-        future.add_done_callback(self._on_integrated_complete)
+        future.add_done_callback(self._on_pipeline_complete)
     
-    def _run_integrated_pipeline(self, screenshot, recording):
+    def _run_pipeline(self, screenshot, recording):
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         try:
@@ -217,7 +216,7 @@ class TutorTray(rumps.App):
         finally:
             loop.close()
 
-    def _on_integrated_complete(self, future):
+    def _on_pipeline_complete(self, future):
         try:
             result = future.result()
             transcript, response, audio_response = result
@@ -226,25 +225,25 @@ class TutorTray(rumps.App):
             self.play_audio(audio_response)
             
             # Store results for UI update
-            self._pending_integrated_update = {
+            self._pending_pipeline_update = {
                 'success': True,
                 'transcript': transcript,
                 'response': response
             }
         except Exception as e:
-            self._pending_integrated_update = {
+            self._pending_pipeline_update = {
                 'success': False,
                 'error': str(e)
             }
         
         # Schedule UI update on main thread
-        timer = rumps.Timer(self._update_ui_integrated, 0.01)
+        timer = rumps.Timer(self._update_ui_pipeline, 0.01)
         timer.start()
 
-    def _update_ui_integrated(self, _):
+    def _update_ui_pipeline(self, _):
         """Update UI after integrated pipeline completes"""
-        if hasattr(self, '_pending_integrated_update'):
-            update = self._pending_integrated_update
+        if hasattr(self, '_pending_pipeline_update'):
+            update = self._pending_pipeline_update
             
             if update['success']:
                 rumps.notification(
@@ -257,7 +256,7 @@ class TutorTray(rumps.App):
                 rumps.alert("Error", f"An error occurred: {update['error']}")
                 self.status.title = "Status: Error"
             
-            del self._pending_integrated_update
+            del self._pending_pipeline_update
             self.processing = False
 
 if __name__ == "__main__":
