@@ -52,11 +52,38 @@ class TutorTray(rumps.App):
         })
         self._ghk.daemon = True
         self._ghk.start()
+    def _debounced(self) -> bool:
+        now = time.monotonic()
+        with self._trigger_lock:
+            if now - self._last_trigger < self._debounce_window:
+                return True
+            self._last_trigger = now
+        return False
+
+    def _safe_toggle(self, source: str):
+        # Prevent rapid double-enter & reentry during transitions
+        if self._debounced() or getattr(self, "_transitioning", False):
+            return
+        self._transitioning = True
+        try:
+            if getattr(self, "is_recording", False):
+                self._stop_recording_and_process()
+            else:
+                self._start_recording()
+        finally:
+            self._transitioning = False
+
+    def _on_global_hotkey(self):
+        self._safe_toggle("hotkey")
 
     def _toggle_record_hotkey(self, injected=False):
         if self.is_recording:
+            self.is_asking = False
+            self.ask.title = "Start Asking"
             self._stop_recording_and_process()
         else:
+            self.is_asking = True
+            self.ask.title = "Stop Asking"
             self._start_recording()
 
     def _audio_cb(self, indata, frames, t, status):
@@ -74,7 +101,7 @@ class TutorTray(rumps.App):
         now = time.time()
         if now - self._last_cb_log > 1.0:
             self._last_cb_log = now
-            print(f"[cb] frames+={frames}, total={self._frames}, rms={rms:.5f}")
+            #print(f"[cb] frames+={frames}, total={self._frames}, rms={rms:.5f}")
 
     async def _async_pipeline(self, screenshot, recording):
         try:
@@ -149,7 +176,7 @@ class TutorTray(rumps.App):
             print(f"Audio playback error: {e}")
 
     def on_ask(self, _):
-        if not self.is_asking:
+        if not self.is_recording:
             self.is_asking = True
             self.ask.title = "Stop Asking"
             self._start_recording()
