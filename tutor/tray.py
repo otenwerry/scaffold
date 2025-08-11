@@ -23,6 +23,11 @@ class TutorTray(rumps.App):
         self._lock = threading.Lock() # lock for buffer
         self._stream = None # audio stream
 
+        #debug state
+        self._last_rms = 0.0
+        self._frames = 0
+        self._last_cb_log = 0.0
+
         #pipeline state
         self.screenshot = None
         self.saved_recording = None
@@ -78,6 +83,7 @@ class TutorTray(rumps.App):
         if self.is_recording:
             return
         self._buf.clear()
+        self._frames = 0
         # float32 is fine; we'll convert to int16 on save
         self._stream = sd.InputStream(samplerate=SR, channels=1, dtype="float32", callback=self._audio_cb)
         self._stream.start()
@@ -184,7 +190,7 @@ class TutorTray(rumps.App):
         except Exception as e:
             return str(e)
     
-    async def _stt(self, prompt, recording):
+    async def _stt(self, recording):
         recording.seek(0)
         result = await self.client.audio.transcriptions.create(
             model="whisper-1",
