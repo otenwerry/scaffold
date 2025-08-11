@@ -18,14 +18,14 @@ class TutorTray(rumps.App):
         self.client = AsyncOpenAI()
 
         # state for recording
-        self.recording = False
+        self.is_recording = False
         self._buf = [] # audio buffer
         self._lock = threading.Lock() # lock for buffer
         self._stream = None # audio stream
 
         #pipeline state
         self.screenshot = None
-        self.recording = None
+        self.saved_recording = None
         self.processing = False
 
         # Thread pool for async operations
@@ -69,25 +69,25 @@ class TutorTray(rumps.App):
             print(f"[cb] frames+={frames}, total={self._frames}, rms={rms:.5f}")
 
     def on_record(self, _):
-        if self.recording:
+        if self.is_recording:
             self.stop_recording()
         else:
             self.start_recording()
 
     def start_recording(self):
-        if self.recording:
+        if self.is_recording:
             return
         self._buf.clear()
         # float32 is fine; we'll convert to int16 on save
         self._stream = sd.InputStream(samplerate=SR, channels=1, dtype="float32", callback=self._audio_cb)
         self._stream.start()
-        self.recording = True
+        self.is_recording = True
         self.record_button.title = "Stop Recording"
         self.status.title = "Status: Recording"
         rumps.notification("Tutor", "", "Recording…")
 
     def stop_recording(self):
-        if not self.recording:
+        if not self.is_recording:
             return
         try:
             if self._stream:
@@ -95,7 +95,7 @@ class TutorTray(rumps.App):
                 self._stream.close()
         finally:
             self._stream = None
-            self.recording = False
+            self.is_recording = False
             self.record_button.title = "Start Recording"
         # collapse buffer --> wav
         with self._lock:
@@ -122,7 +122,7 @@ class TutorTray(rumps.App):
             wf.writeframes(audio_int16.tobytes())
         wav_io.seek(0)
         wav_io.name = "tutor-recording.wav"
-        self.recording = wav_io
+        self.saved_recording = wav_io
         self.status.title = "Status: Recording saved"
         self._update_ask_button()
         rumps.notification("Tutor", "", f"Saved WAV: {wav_io.name}")
@@ -138,20 +138,20 @@ class TutorTray(rumps.App):
         rumps.notification("Tutor", "", "Screenshot taken")
     
     def _update_ask_button(self):
-        if self.recording and self.screenshot and not self.processing:
+        if self.saved_recording and self.screenshot and not self.processing:
             self.ask_button.set_callback(self.on_ask_ai)
             self.ask_button.title = "Ask AI (ready)"
         else:
             self.ask_button.set_callback(None)
             if self.processing:
                 self.ask_button.title = "Ask AI (processing)"
-            elif not self.recording:
+            elif not self.saved_recording:
                 self.ask_button.title = "Ask AI (no recording)"
             elif not self.screenshot:
                 self.ask_button.title = "Ask AI (no screenshot)"
 
     def on_ask_ai(self, _):
-        if not self.recording or not self.screenshot:
+        if not self.saved_recording or not self.screenshot:
             rumps.alert("Missing data", "Please record and take a screenshot first.")
             return
         if self.processing:
@@ -167,7 +167,7 @@ class TutorTray(rumps.App):
         asyncio.set_event_loop(loop)
         try:
             result = loop.run_until_complete(
-                self._async_pipeline(self.screenshot, self.recording)
+                self._async_pipeline(self.screenshot, self.saved_recording)
             )
             return result
         finally:
@@ -238,7 +238,7 @@ class TutorTray(rumps.App):
                 f"A: {response[:100]}..."
             )
             self.status.title = "Status: Complete"
-            self.recording = None
+            self.saved_recording = None
             self.screenshot = None
         except Exception as e:
             rumps.alert("Error", f"An error occurred: {str(e)}")
