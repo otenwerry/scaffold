@@ -238,18 +238,34 @@ class TutorTray(rumps.App):
         try:
             transcript, response, audio_response = future.result()
             self.play_audio(audio_response)
-            rumps.notification(
-                "Tutor AI Response",
-                f"Q: {transcript[:50]}...",
-                f"A: {response[:100]}..."
-            )
-            self.status.title = "Status: Complete"
-            self.saved_recording = None
-            self.screenshot = None
+            self._pending_ui_update = {
+                'success': True,
+                'transcript': transcript,
+                'response': response
+            }
         except Exception as e:
-            rumps.alert("Error", f"An error occurred: {str(e)}")
-            self.status.title = "Status: Error"
-        finally:
+            self._pending_ui_update = {
+                'success': False,
+                'error': str(e)
+            }
+        rumps.Timer(0.01, self._update_ui_from_pipeline).start()
+
+    def _update_ui_from_pipeline(self, _):
+        if hasattr(self, '_pending_ui_update'):
+            update = self._pending_ui_update
+            if update['success']:
+                rumps.notification(
+                    "Tutor AI Response",
+                    f"Q: {update['transcript'][:50]}...",
+                    f"A: {update['response'][:100]}..."
+                )
+                self.status.title = "Status: Complete"
+                self.saved_recording = None
+                self.screenshot = None
+            else:
+                rumps.alert("Error", f"An error occurred: {update['error']}")
+                self.status.title = "Status: Error"
+            del self._pending_ui_update
             self.processing = False
             self._update_ask_button()
 
