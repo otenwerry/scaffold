@@ -37,7 +37,7 @@ class TutorTray(rumps.App):
 
         # Menu items
         self.ask = rumps.MenuItem("Start Asking", callback=self.on_ask, key="<f9>")
-        self.is_asking = False
+        
         self.separator = rumps.separator
         self.status = rumps.MenuItem("Status: Ready")
         self.menu = [
@@ -56,14 +56,12 @@ class TutorTray(rumps.App):
     
     def on_ask(self, _):
         print("UI: Ask button clicked")
-        if not self.is_asking:
-            self.is_asking = True
+        if not self.is_recording:
             self.ask.title = "Stop Asking"
             print("UI: Entering asking mode")
             self._start_recording()
             rumps.notification("Tutor", "", "Asking…")
         else:
-            self.is_asking = False
             self.ask.title = "Start Asking"
             print("UI: Exiting asking mode")
             self._stop_recording_and_process()
