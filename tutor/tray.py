@@ -242,45 +242,21 @@ class TutorTray(rumps.App):
             if 'error' in result:
                 rumps.alert("Error", f"An error occurred: {result['error']}")
                 self.status.title = "Status: Error"
+                self.processing = False
                 return
             
             # Play audio response
             self.play_audio(result['audio_response'])
-            
-            # Store results for UI update
-            self._pending_pipeline_update = {
-                'success': True,
-                'transcript': result['transcript'],
-                'response': result['response']
-            }
-        except Exception as e:
-            self._pending_pipeline_update = {
-                'success': False,
-                'error': str(e)
-            }
-        
-        # Schedule UI update on main thread
-        timer = rumps.Timer(self._update_ui_pipeline, 0.01)
-        timer.start()
 
-    def _update_ui_pipeline(self, _):
-        """Update UI after integrated pipeline completes"""
-        print("Updating UI")
-        if hasattr(self, '_pending_pipeline_update'):
-            update = self._pending_pipeline_update
-            
-            if update['success']:
-                rumps.notification(
-                    "Tutor AI Response",
-                    f"Q: {update['transcript'][:50]}...",
-                    f"A: {update['response'][:100]}..."
-                )
-                self.status.title = "Status: Ready"
-            else:
-                rumps.alert("Error", f"An error occurred: {update['error']}")
-                self.status.title = "Status: Error"
-            
-            del self._pending_pipeline_update
+            transcript = result['transcript']
+            response = result['response']
+            rumps.notification("Tutor", f"Q: {transcript[:50]}...", f"A: {response[:100]}...")
+            self.status.title = "Status: Ready"
+            self.processing = False
+
+        except Exception as e:
+            rumps.alert("Error", f"An error occurred: {e}")
+            self.status.title = "Status: Error"
             self.processing = False
 
 if __name__ == "__main__":
