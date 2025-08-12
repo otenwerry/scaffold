@@ -1,4 +1,9 @@
-from re import L
+import sys
+import os
+if getattr(sys, 'frozen', False):
+    sys.stdout = open(os.devnull, 'w')
+    sys.stderr = open(os.devnull, 'w')
+
 import rumps
 import sounddevice as sd
 import numpy as np
@@ -14,9 +19,20 @@ SR = 16000
 class TutorTray(rumps.App):
     def __init__(self):
         super().__init__("Tutor")
+        print("TutorTray: Initialized")
         self.quit_button.title = "Exit"
 
-        self.client = AsyncOpenAI()
+        api_key = os.getenv('OPENAI_API_KEY')
+        if not api_key:
+            config_path = os.path.expanduser('~/.tutor_config')
+            if os.path.exists(config_path):
+                with open(config_path, 'r') as f:
+                    api_key = f.read().strip()
+            else:
+                rumps.alert("Error", "OPENAI_API_KEY is not set")
+                self.quit_application()
+                return
+        self.client = AsyncOpenAI(api_key=api_key)
 
         # state for recording
         self.is_recording = False
@@ -296,4 +312,6 @@ class TutorTray(rumps.App):
 if __name__ == "__main__":
     print("Main: Launching TutorTray app")
     app = TutorTray()
+    print("Main: Starting run loop")
     app.run()
+    print("Main: App terminated")
