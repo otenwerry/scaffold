@@ -53,7 +53,7 @@ class TutorTray(rumps.App):
         self._ghk.daemon = True
         self._ghk.start()
 
-    def _toggle_record_hotkey(self):
+    def _toggle_record_hotkey(self, injected=False):
         if self.is_recording:
             self._stop_recording_and_process()
         else:
