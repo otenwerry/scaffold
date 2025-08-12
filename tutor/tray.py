@@ -48,19 +48,25 @@ class TutorTray(rumps.App):
 
         # hotkey for recording
         self._ghk = pk.GlobalHotKeys({
-            '<f9>': self._toggle_record_hotkey 
+            '<f9>': lambda: self.on_ask(None)
         })
         self._ghk.daemon = True
         self._ghk.start()
 
-    def _toggle_record_hotkey(self, injected=False):
-        print("Hotkey: Toggle record pressed")
-        if self.is_recording:
-            print("Hotkey: Stopping recording")
-            self._stop_recording_and_process()
-        else:
-            print("Hotkey: Starting recording")
+    
+    def on_ask(self, _):
+        print("UI: Ask button clicked")
+        if not self.is_asking:
+            self.is_asking = True
+            self.ask.title = "Stop Asking"
+            print("UI: Entering asking mode")
             self._start_recording()
+            rumps.notification("Tutor", "", "Asking…")
+        else:
+            self.is_asking = False
+            self.ask.title = "Start Asking"
+            print("UI: Exiting asking mode")
+            self._stop_recording_and_process()
 
     def _audio_cb(self, indata, frames, t, status):
         if status:
@@ -167,20 +173,6 @@ class TutorTray(rumps.App):
             print("Audio: Playback started")
         except Exception as e:
             print(f"Audio playback error: {e}")
-
-    def on_ask(self, _):
-        print("UI: Ask button clicked")
-        if not self.is_asking:
-            self.is_asking = True
-            self.ask.title = "Stop Asking"
-            print("UI: Entering asking mode")
-            self._start_recording()
-            rumps.notification("Tutor", "", "Asking…")
-        else:
-            self.is_asking = False
-            self.ask.title = "Start Asking"
-            print("UI: Exiting asking mode")
-            self._stop_recording_and_process()
     
     def _start_recording(self):
         print("Recording: Start requested")
