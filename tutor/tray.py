@@ -110,7 +110,7 @@ class TutorTray(rumps.App):
             messages=[
                 {
                     'role': 'system',
-                    'content': 'You are a concise and helpful tutor who can see the user\'s screen and explains aloud. Use one or two sentences per answer. Give the user some ideas for what to do next or questions they could ask to learn more about what they are looking at.'
+                    'content': 'You are a concise and helpful tutor who can see the user\'s screen and explains aloud. Use one sentence per answer only.'
                 },
                 {
                     'role': 'user',
@@ -265,6 +265,7 @@ class TutorTray(rumps.App):
 
     def _update_ui_pipeline(self, _):
         """Update UI after integrated pipeline completes"""
+        print("Updating UI")
         if hasattr(self, '_pending_pipeline_update'):
             update = self._pending_pipeline_update
             
