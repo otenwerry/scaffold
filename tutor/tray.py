@@ -53,7 +53,7 @@ class TutorTray(rumps.App):
         self._ghk.daemon = True
         self._ghk.start()
 
-    def _toggle_record_hotkey(self, injected=False):
+    def _toggle_record_hotkey(self):
         if self.is_recording:
             self._stop_recording_and_process()
         else:
@@ -248,7 +248,7 @@ class TutorTray(rumps.App):
             self.play_audio(result['audio_response'])
             
             # Store results for UI update
-            self._pending_pispeline_update = {
+            self._pending_pipeline_update = {
                 'success': True,
                 'transcript': result['transcript'],
                 'response': result['response']
