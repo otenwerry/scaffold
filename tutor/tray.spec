@@ -47,7 +47,7 @@ exe = EXE(
 app = BUNDLE(
     exe,
     name='Tutor.app',
-    icon='icon.icns',
+    #icon='icon.icns',
     bundle_identifier='com.yourcompany.tutor',
     info_plist={
         'NSHighResolutionCapable': 'True',
