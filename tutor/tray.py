@@ -85,11 +85,18 @@ class TutorTray(QSystemTrayIcon):
         
         # Show system tray
         self.show()
+        print("Tray: Shown")
+
+        if not QSystemTrayIcon.isSystemTrayAvailable():
+            print("Tray: System tray not available")
+        else:
+            print("Tray: System tray available")
         
         # Show initial notification
         self.showMessage("Tutor", "App is running. Press F9 to ask a question.")
     
     def setup_icon(self):
+        print("Setting up icon")
         try:
             self.setIcon(QIcon("icon.png"))
         except:
@@ -100,6 +107,7 @@ class TutorTray(QSystemTrayIcon):
             painter.drawEllipse(0, 0, 32, 32)
             painter.end()
             self.setIcon(QIcon(pixmap))
+        print("Icon set")
 
     def setup_api_client(self):
         api_key = os.getenv('OPENAI_API_KEY')
@@ -132,23 +140,24 @@ class TutorTray(QSystemTrayIcon):
         menu.addSeparator()
         
         # Settings action (for future use)
-        settings_action = QAction("Settings...")
-        settings_action.triggered.connect(self.show_settings)
-        menu.addAction(settings_action)
+        self.settings_action = QAction("Settings...")
+        self.settings_action.triggered.connect(self.show_settings)
+        menu.addAction(self.settings_action)
         
         # Login action (for future use)
-        login_action = QAction("Login...")
-        login_action.triggered.connect(self.show_login)
-        menu.addAction(login_action)
+        self.login_action = QAction("Login...")
+        self.login_action.triggered.connect(self.show_login)
+        menu.addAction(self.login_action)
         
         menu.addSeparator()
         
         # Quit action
-        quit_action = QAction("Exit")
-        quit_action.triggered.connect(self.quit_app)
-        menu.addAction(quit_action)
+        self.quit_action = QAction("Exit")
+        self.quit_action.triggered.connect(self.quit_app)
+        menu.addAction(self.quit_action)
         
         self.setContextMenu(menu)
+        
 
     def show_login(self):
         dialog = LoginDialog()
