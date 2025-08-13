@@ -39,7 +39,7 @@ class LoginDialog(QDialog):
         layout.addWidget(QLabel("Password:"))
         self.password_input = QLineEdit()
         self.password_input.setPlaceholderText("Enter your password")
-        self.password_input.setEchoMode(QLineEdit.EchoModePassword)
+        self.password_input.setEchoMode(QLineEdit.EchoMode.Password)
         layout.addWidget(self.password_input)
 
         buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
@@ -167,11 +167,14 @@ class TutorTray(QSystemTrayIcon):
     
     def quit_app(self):
         """Clean shutdown"""
+        self.is_recording = False
         if self._stream:
             self._stream.stop()
             self._stream.close()
-        if self._ghk:
+        if hasattr(self, '_ghk'):
             self._ghk.stop()
+        if hasattr(self, 'executor'):
+            self.executor.shutdown(wait=False)
         QApplication.quit()
     
     @Slot(str)
