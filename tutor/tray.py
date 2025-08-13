@@ -54,7 +54,7 @@ class LoginDialog(QDialog):
 class TutorTray(QSystemTrayIcon):
     show_notification = Signal(str, str, str)
     update_status = Signal(str)
-    def __init__(self):
+    def __init__(self, app):
         super().__init__()
         self.app = app
         self.setup_icon()
@@ -245,12 +245,12 @@ class TutorTray(QSystemTrayIcon):
     def on_ask(self, _):
         print("UI: Ask button clicked")
         if not self.is_recording:
-            self.ask.title = "Stop Asking"
+            self.ask_action.setText("Stop Asking (F9)")
             print("UI: Entering asking mode")
             self._start_recording()
-            rumps.notification("Tutor", "", "Asking…")
+            self.show_notification.emit("Tutor", "", "Asking…")
         else:
-            self.ask.title = "Start Asking"
+            self.ask_action.setText("Start Asking (F9)")
             print("UI: Exiting asking mode")
             self._stop_recording_and_process()
 
@@ -381,7 +381,7 @@ class TutorTray(QSystemTrayIcon):
     def _stop_recording_and_process(self):
         print("Recording: Stop requested")
         if not self.is_recording:
-            self.status.title = "Status: No recording to process"
+            self.update_status.emit("No recording to process")
             print("Recording: Not recording; nothing to stop")
             return
         try:
@@ -400,7 +400,7 @@ class TutorTray(QSystemTrayIcon):
         
         if audio.size == 0:
             self.status.title = "Status: No audio captured"
-            rumps.notification("Tutor", "", "No audio captured.")
+            self.show_notification.emit("Tutor", "", "No audio captured.")
             print("Recording: No audio captured")
             return
         
@@ -417,7 +417,7 @@ class TutorTray(QSystemTrayIcon):
         print("Recording: WAV prepared")
         
         # Take screenshot automatically
-        self.status.title = "Status: Taking screenshot"
+        self.update_status.emit("Taking screenshot")
         print("Screenshot: Capturing screen")
         with mss.mss() as sct:
             img = sct.grab(sct.monitors[0])
@@ -426,8 +426,8 @@ class TutorTray(QSystemTrayIcon):
         
         # Now process with AI
         self.processing = True
-        self.status.title = "Status: Processing with AI"
-        rumps.notification("Tutor", "", "Processing your question")
+        self.update_status.emit("Processing with AI")
+        self.show_notification.emit("Tutor", "", "Processing your question")
         print("Pipeline: Submitting to executor")
         
         # Run the pipeline
@@ -459,8 +459,8 @@ class TutorTray(QSystemTrayIcon):
             result = future.result()
             if 'error' in result:
                 print(f"Pipeline: Error in result: {result['error']}")
-                rumps.alert("Error", f"An error occurred: {result['error']}")
-                self.status.title = "Status: Error"
+                QMessageBox.critical(None, "Error", f"An error occurred: {result['error']}")
+                self.update_status.emit("Error")
                 self.processing = False
                 return
             
@@ -470,15 +470,19 @@ class TutorTray(QSystemTrayIcon):
 
             transcript = result['transcript']
             response = result['response']
-            rumps.notification("Tutor", f"Q: {transcript[:50]}...", f"A: {response[:100]}...")
-            self.status.title = "Status: Ready"
+            self.show_notification.emit(
+                "Tutor",
+                f"Q: {transcript[:50]}...",
+                f"A: {response[:100]}..."
+            )
+            self.update_status.emit("Ready")
             self.processing = False
             print("Pipeline: Completed successfully")
 
         except Exception as e:
             print(f"Pipeline: Exception in completion handler: {e}")
-            rumps.alert("Error", f"An error occurred: {e}")
-            self.status.title = "Status: Error"
+            QMessageBox.critical(None, "Error", f"An error occurred: {e}")
+            self.update_status.emit("Error")
             self.processing = False
 
 def main():
@@ -486,7 +490,7 @@ def main():
     #app = TutorTray()
     app = QApplication(sys.argv)
     app.setQuitOnLastWindowClosed(False) #keep running in tray
-    tray = TutorTray()
+    tray = TutorTray(app)
     print("Main: Starting run loop")
     #app.run()
     sys.exit(app.exec())
