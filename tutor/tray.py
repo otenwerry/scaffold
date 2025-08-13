@@ -4,6 +4,13 @@ if getattr(sys, 'frozen', False):
     sys.stdout = open(os.devnull, 'w')
     sys.stderr = open(os.devnull, 'w')
 
+from PySide6.QtWidgets import (QApplication, QSystemTrayIcon, QMenu, 
+                              QMainWindow, QVBoxLayout, QWidget, 
+                              QLineEdit, QPushButton, QLabel, QMessageBox,
+                              QDialog, QDialogButtonBox, QTextEdit)
+from PySide6.QtCore import QThread, Signal, Slot, QTimer
+from PySide6.QtGui import QIcon, QAction
+
 import rumps
 import sounddevice as sd
 import numpy as np
@@ -15,6 +22,23 @@ from concurrent.futures import ThreadPoolExecutor
 from pynput import keyboard as pk
 
 SR = 16000
+
+class LoginDialog(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Tutor Login")
+        self.setFixedSize(350, 200)
+
+        layout = QVBoxLayout()
+        layout.addWidget(QLabel("Email:"))
+        self.email_input = QLineEdit()
+        self.email_input.setPlaceholderText("Enter your email")
+        layout.addWidget(self.email_input)
+        layout.addWidget(QLabel("Password:"))
+        self.password_input = QLineEdit()
+        self.password_input.setPlaceholderText("Enter your password")
+        self.password_input.setEchoMode(QLineEdit.EchoModePassword)
+        layout.addWidget(self.password_input)
 
 class TutorTray(rumps.App):
     def __init__(self):
