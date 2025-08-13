@@ -121,7 +121,7 @@ class TutorTray(QSystemTrayIcon):
         self.ask_action = QAction("Start Asking (F9)")
         self.ask_action.triggered.connect(self.on_ask)
         menu.addAction(self.ask_action)
-        
+
         menu.addSeparator()
         
         # Status display
@@ -130,6 +130,8 @@ class TutorTray(QSystemTrayIcon):
         menu.addAction(self.status_action)
         
         menu.addSeparator()
+
+        
         
         # Settings action (for future use)
         settings_action = QAction("Settings...")
@@ -141,7 +143,7 @@ class TutorTray(QSystemTrayIcon):
         login_action.triggered.connect(self.show_login)
         menu.addAction(login_action)
         
-        menu.addSeparator()
+        #menu.addSeparator()
         
         # Quit action
         quit_action = QAction("Exit")
@@ -375,7 +377,7 @@ class TutorTray(QSystemTrayIcon):
         )
         self._stream.start()
         self.is_recording = True
-        self.status.title = "Status: Recording"
+        self.update_status.emit("Recording")
         print("Recording: Started")
 
     def _stop_recording_and_process(self):
@@ -399,7 +401,7 @@ class TutorTray(QSystemTrayIcon):
         print(f"Recording: Captured frames={self._frames}, samples={audio.size}")
         
         if audio.size == 0:
-            self.status.title = "Status: No audio captured"
+            self.update_status.emit("No audio captured")
             self.show_notification.emit("Tutor", "", "No audio captured.")
             print("Recording: No audio captured")
             return
