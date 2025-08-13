@@ -41,7 +41,7 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon='icon.icns',  # convert PNG to ICNS for macOS
+    #icon='icon.icns',  # convert PNG to ICNS for macOS
 )
 
 app = BUNDLE(
