@@ -130,8 +130,6 @@ class TutorTray(QSystemTrayIcon):
         menu.addAction(self.status_action)
         
         menu.addSeparator()
-
-        
         
         # Settings action (for future use)
         settings_action = QAction("Settings...")
@@ -143,7 +141,7 @@ class TutorTray(QSystemTrayIcon):
         login_action.triggered.connect(self.show_login)
         menu.addAction(login_action)
         
-        #menu.addSeparator()
+        menu.addSeparator()
         
         # Quit action
         quit_action = QAction("Exit")
@@ -188,63 +186,7 @@ class TutorTray(QSystemTrayIcon):
         full_message = f"{subtitle}\n{message}" if subtitle else message
         self.showMessage(title, full_message)
 
-
-
-    '''
-    def __init__(self):
-        super().__init__()
-        print("TutorTray: Initialized")
-        self.quit_button.title = "Exit"
-
-        api_key = os.getenv('OPENAI_API_KEY')
-        if not api_key:
-            config_path = os.path.expanduser('~/.tutor_config')
-            if os.path.exists(config_path):
-                with open(config_path, 'r') as f:
-                    api_key = f.read().strip()
-            else:
-                rumps.alert("Error", "OPENAI_API_KEY is not set")
-                self.quit_application()
-                return
-        self.client = AsyncOpenAI(api_key=api_key)
-
-        # state for recording
-        self.is_recording = False
-        self._buf = [] # audio buffer
-        self._lock = threading.Lock() # lock for buffer
-        self._stream = None # audio stream
-
-        #debug state
-        self._last_rms = 0.0
-        self._frames = 0
-        self._last_cb_log = 0.0
- 
-        #pipeline state
-        self.processing = False
-
-        # Thread pool for async operations
-        self.executor = ThreadPoolExecutor(max_workers=2)
-
-        # Menu items
-        self.ask = rumps.MenuItem("Start Asking", callback=self.on_ask, key="<f9>")
-        
-        self.separator = rumps.separator
-        self.status = rumps.MenuItem("Status: Ready")
-        self.menu = [
-            self.ask,
-            self.separator,
-            self.status
-        ]
-
-        # hotkey for recording
-        self._ghk = pk.GlobalHotKeys({
-            '<f9>': lambda: self.on_ask(None)
-        })
-        self._ghk.daemon = True
-        self._ghk.start()
-
-    '''
-    def on_ask(self, _):
+    def on_ask(self):
         print("UI: Ask button clicked")
         if not self.is_recording:
             self.ask_action.setText("Stop Asking (F9)")
