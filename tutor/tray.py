@@ -22,6 +22,7 @@ import asyncio
 from openai import AsyncOpenAI
 from concurrent.futures import ThreadPoolExecutor
 from pynput import keyboard as pk
+from PIL import Image
 
 SR = 16000
 
@@ -261,10 +262,19 @@ class TutorTray(QSystemTrayIcon):
         print("STT: Transcription finished")
         return result.text
     
+    def _downscale_image(self, image, max_w=1024, quality=80):
+        im = Image.open(io.BytesIO(image)).convert("RGB")
+        w, h = im.size
+        if w > max_w:
+            im = im.resize((max_w, int(h * max_w / w)), Image.Resampling.LANCZOS)
+        out = io.BytesIO()
+        im.save(out, format="JPEG", quality=quality, optimize=True)
+        b64 = base64.b64encode(out.getvalue()).decode('ascii')
+        return f'data:image/jpeg;base64,{b64}'
+    
     async def _llm(self, prompt, screenshot):
         print("LLM: Starting request")
-        b64_png = base64.b64encode(screenshot).decode('ascii')
-        image_payload = f'data:image/png;base64,{b64_png}' 
+        image_payload = self._downscale_image(screenshot)
         response = await self.client.chat.completions.create(
             model="gpt-4o-mini",
             max_tokens=500,
