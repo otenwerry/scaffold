@@ -305,7 +305,7 @@ class TutorTray(QSystemTrayIcon):
     async def _tts(self, text):
         print("TTS: Starting synthesis")
         response = await self.client.audio.speech.create(
-            model="tts-1",
+            model="gpt-4o-mini-tts",
             input=text,
             voice="alloy",
             response_format="wav"
