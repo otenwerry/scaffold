@@ -26,6 +26,9 @@ from PIL import Image
 
 SR = 16000
 
+with open("system_prompt.txt", "r") as f:
+    SYSTEM_PROMPT = f.read()
+
 class LoginDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -307,7 +310,7 @@ class TutorTray(QSystemTrayIcon):
             messages=[
                 {
                     'role': 'system',
-                    'content': 'You are a concise and helpful tutor who can see the user\'s screen and explains aloud. Use one sentence per answer only.'
+                    'content': SYSTEM_PROMPT
                 },
                 {
                     'role': 'user',
