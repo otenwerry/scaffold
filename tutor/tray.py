@@ -241,17 +241,29 @@ class TutorTray(QSystemTrayIcon):
 
             q = asyncio.Queue()
             async def speaker():
+                loop = asyncio.get_running_loop()
+                next_task = None
                 while True:
                     s = await q.get()
                     if s is None:
                         q.task_done()
                         break
                     s = s.strip()
-                    if s:
-                        audio_bytes = await self._tts(s.strip())
-                        loop = asyncio.get_running_loop()
-                        await loop.run_in_executor(None, lambda: self.play_audio(audio_bytes, wait=True))
+                    if not s:
+                        q.task_done()
+                        continue
+                    if next_task is None:
+                        next_task = asyncio.create_task(self._tts(s))
+                        q.task_done()
+                        continue
+                    curr_task = asyncio.create_task(self._tts(s))
+                    audio_prev = await next_task
+                    await loop.run_in_executor(None, lambda: self.play_audio(audio_prev, wait=True))
+                    next_task = curr_task
                     q.task_done()
+                if next_task:
+                    audio_last = await next_task
+                    await loop.run_in_executor(None, lambda: self.play_audio(audio_last, wait=True))
             
             spk_task = asyncio.create_task(speaker())
             
