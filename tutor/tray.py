@@ -256,7 +256,7 @@ class TutorTray(QSystemTrayIcon):
         print("STT: Starting transcription")
         recording.seek(0)
         result = await self.client.audio.transcriptions.create(
-            model="whisper-1",
+            model="gpt-4o-mini-transcribe",
             file=recording
         )
         print("STT: Transcription finished")
