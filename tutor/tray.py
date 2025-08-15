@@ -259,7 +259,6 @@ class TutorTray(QSystemTrayIcon):
             async for chunk in self._llm(transcript, screenshot):
                 response += chunk
                 sentence_buf += chunk
-                print("Pipeline: LLM chunk received")
                 if any(sentence_buf.endswith(p) for p in [".", "?", "!"]) and len(sentence_buf) > 12:
                     await q.put(sentence_buf)
                     sentence_buf = ""
@@ -327,7 +326,6 @@ class TutorTray(QSystemTrayIcon):
         async for chunk in response:
             delta = chunk.choices[0].delta.content
             if delta:
-                print("LLM: Delta content received")
                 yield delta
         print("LLM: Response stream closed")
     
