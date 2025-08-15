@@ -234,17 +234,31 @@ class TutorTray(QSystemTrayIcon):
             transcript = await self._stt(recording)
             print("Pipeline: STT completed")
             response = ""
+            sentence_buf = ""
+            
+            async def speak_chunk(s):
+                if s.strip():
+                    audio_bytes = await self._tts(s.strip())
+                    loop = asyncio.get_running_loop()
+                    await loop.run_in_executor(None, lambda: self.play_audio(audio_bytes, wait=True))
+
             print("Pipeline: LLM streaming started")
             async for chunk in self._llm(transcript, screenshot):
                 response += chunk
+                sentence_buf += chunk
                 print("Pipeline: LLM chunk received")
+                if any(sentence_buf.endswith(p) for p in [".", "?", "!"]) and len(sentence_buf) > 12:
+                    asyncio.create_task(speak_chunk(sentence_buf))
+                    sentence_buf = ""
+            #flush remainder
+            if sentence_buf.strip():
+                asyncio.create_task(speak_chunk(sentence_buf))
             print("Pipeline: LLM streaming completed")
-            audio_response = await self._tts(response)
             print("Pipeline: TTS completed")
             return {
                 'transcript': transcript,
                 'response': response,
-                'audio_response': audio_response
+                'audio_response': None
             }
         except Exception as e:
             print(f"Pipeline: Error occurred: {e}")
@@ -313,15 +327,16 @@ class TutorTray(QSystemTrayIcon):
         print("TTS: Synthesis finished")
         return response.read()
     
-    def play_audio(self, audio_bytes):
+    def play_audio(self, audio_bytes, wait=False):
         print("Audio: Preparing playback")
         try:
             with wave.open(io.BytesIO(audio_bytes), 'rb') as wav:
                 frames = wav.readframes(wav.getnframes())
                 audio = np.frombuffer(frames, dtype=np.int16)
                 fs = wav.getframerate()
-            # Play audio in a separate thread to avoid blocking
-            threading.Thread(target=lambda: sd.play(audio, fs), daemon=True).start()
+            sd.play(audio, fs)
+            if wait:
+                sd.wait()
             print("Audio: Playback started")
         except Exception as e:
             print(f"Audio playback error: {e}")
@@ -430,9 +445,8 @@ class TutorTray(QSystemTrayIcon):
                 self.processing = False
                 return
             
-            # Play audio response
-            print("Audio: Playing response audio")
-            self.play_audio(result['audio_response'])
+
+            print("Audio played inline via sentence level TTS")
 
             transcript = result['transcript']
             response = result['response']
