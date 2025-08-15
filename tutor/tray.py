@@ -235,24 +235,36 @@ class TutorTray(QSystemTrayIcon):
             print("Pipeline: STT completed")
             response = ""
             sentence_buf = ""
-            
-            async def speak_chunk(s):
-                if s.strip():
-                    audio_bytes = await self._tts(s.strip())
-                    loop = asyncio.get_running_loop()
-                    await loop.run_in_executor(None, lambda: self.play_audio(audio_bytes, wait=True))
 
+            q = asyncio.Queue()
+            async def speaker():
+                while True:
+                    s = await q.get()
+                    if s is None:
+                        q.task_done()
+                        break
+                    s = s.strip()
+                    if s:
+                        audio_bytes = await self._tts(s.strip())
+                        loop = asyncio.get_running_loop()
+                        await loop.run_in_executor(None, lambda: self.play_audio(audio_bytes, wait=True))
+                    q.task_done()
+            
+            spk_task = asyncio.create_task(speaker())
+            
             print("Pipeline: LLM streaming started")
             async for chunk in self._llm(transcript, screenshot):
                 response += chunk
                 sentence_buf += chunk
                 print("Pipeline: LLM chunk received")
                 if any(sentence_buf.endswith(p) for p in [".", "?", "!"]) and len(sentence_buf) > 12:
-                    asyncio.create_task(speak_chunk(sentence_buf))
+                    await q.put(sentence_buf)
                     sentence_buf = ""
             #flush remainder
             if sentence_buf.strip():
-                asyncio.create_task(speak_chunk(sentence_buf))
+                await q.put(sentence_buf)
+            await q.put(None)
+            await spk_task
             print("Pipeline: LLM streaming completed")
             print("Pipeline: TTS completed")
             return {
