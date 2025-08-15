@@ -4,6 +4,7 @@ a = Analysis(
     binaries=[],
     datas=[
         ('icon.png', '.'),
+        ('system_prompt.txt', '.'),
     ],
     hiddenimports=[
         'PySide6',

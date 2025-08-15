@@ -13,10 +13,9 @@ from PySide6.QtGui import QIcon, QAction
 from PySide6.QtGui import QPixmap, QPainter, QBrush
 from PySide6.QtCore import Qt
 
-import rumps
 import sounddevice as sd
 import numpy as np
-import wave, tempfile, threading, time, math, base64, io
+import wave, threading, time, base64, io
 import mss
 import asyncio
 from openai import AsyncOpenAI
@@ -25,6 +24,18 @@ from pynput import keyboard as pk
 from PIL import Image
 
 SR = 16000
+
+def asset_path(name: str) -> str:
+    if getattr(sys, 'frozen', False):
+        if hasattr(sys, '_MEIPASS'):
+            base = sys._MEIPASS
+        elif sys.platform == 'darwin':
+            base = os.path.normpath(os.path.join(os.path.dirname(sys.executable), "..", "Resources"))
+        else:
+            base = os.path.dirname(sys.executable)
+    else:
+        base = os.path.dirname(os.path.abspath(__file__))
+    return os.path.join(base, name)
 
 with open("system_prompt.txt", "r") as f:
     SYSTEM_PROMPT = f.read()
@@ -495,6 +506,13 @@ def main():
     #app = TutorTray()
     app = QApplication(sys.argv)
     app.setQuitOnLastWindowClosed(False) #keep running in tray
+    try:
+        with open(asset_path("system_prompt.txt"), "r", encoding="utf-8") as f:
+            SYSTEM_PROMPT = f.read()
+    except Exception as e:
+        QMessageBox.critical(None, "Error", f"Error reading system prompt: {e}")
+        sys.exit(1)
+    
     tray = TutorTray(app)
     print("Main: Starting run loop")
     #app.run()
