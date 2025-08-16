@@ -37,9 +37,6 @@ def asset_path(name: str) -> str:
         base = os.path.dirname(os.path.abspath(__file__))
     return os.path.join(base, name)
 
-with open("system_prompt.txt", "r") as f:
-    SYSTEM_PROMPT = f.read()
-
 class LoginDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -113,7 +110,7 @@ class TutorTray(QSystemTrayIcon):
     def setup_icon(self):
         print("Setting up icon")
         try:
-            self.setIcon(QIcon("icon.png"))
+            self.setIcon(QIcon(asset_path("icon.png")))
         except:
             pixmap = QPixmap(32, 32)
             pixmap.fill(Qt.GlobalColor.transparent)
