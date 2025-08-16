@@ -23,6 +23,7 @@ from anthropic import AsyncAnthropic
 from concurrent.futures import ThreadPoolExecutor
 from pynput import keyboard as pk
 from PIL import Image
+import pytesseract
 
 SR = 16000
 SYSTEM_PROMPT = ""
@@ -298,7 +299,7 @@ class TutorTray(QSystemTrayIcon):
             spk_task = asyncio.create_task(speaker())
             
             print("Pipeline: LLM streaming started")
-            async for chunk in self._claude_llm(transcript, screenshot):
+            async for chunk in self._claude_llm_text(transcript, screenshot):
                 response += chunk
                 sentence_buf += chunk
                 if any(sentence_buf.endswith(p) for p in [".", "?", "!"]) and len(sentence_buf) > 12:
@@ -371,9 +372,47 @@ class TutorTray(QSystemTrayIcon):
                 yield delta
         print("LLM: Response stream closed")
 
-    async def _claude_llm(self, prompt, screenshot):
+    async def _ocr(self, screenshot):
+        print("OCR: Starting request")
+        try:
+            img = Image.open(io.BytesIO(screenshot))
+            text = pytesseract.image_to_string(img)
+            print(f"OCR: Extracted {len(text)} characters")
+            return text.strip()
+        except Exception as e:
+            print(f"OCR: Error occurred: {e}")
+            return ""
+        
+    async def _claude_llm_text(self, prompt, screenshot):
+        print("Claude: Starting request")
+        extracted = await self._ocr(screenshot)
+        if not extracted:
+            print("Falling back to image mode")
+            async for chunk in self._claude_llm_image(prompt, screenshot):
+                yield chunk
+            return
+        combined_prompt = f"{prompt}\n\nScreen content:\n{extracted}"
+        print(f"Combined prompt: {combined_prompt}")
+        async with self.anthropic_client.messages.stream(
+            model="claude-opus-4-1-20250805",
+            max_tokens=500,
+            messages=[
+                {
+                    'role': 'user',
+                    'content': [
+                        {'type': 'text', 'text': combined_prompt}
+                    ]
+                }
+            ],
+            system=SYSTEM_PROMPT
+        ) as stream:
+            async for chunk in stream.text_stream:
+                yield chunk
+
+    async def _claude_llm_image(self, prompt, screenshot):
         print("Claude: Starting request")
         image_payload = self._downscale_image(screenshot)
+        print(f"Prompt: {prompt}")
         async with self.anthropic_client.messages.stream(
             model="claude-opus-4-1-20250805",
             max_tokens=500,
