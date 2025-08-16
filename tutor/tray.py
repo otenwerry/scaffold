@@ -337,6 +337,7 @@ class TutorTray(QSystemTrayIcon):
         image_payload = self._downscale_image(screenshot)
         response = await self.client.chat.completions.create(
             model="gpt-4o-mini",
+            #max_completion_tokens=800,
             max_tokens=500,
             messages=[
                 {
