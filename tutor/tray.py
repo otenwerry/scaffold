@@ -24,6 +24,7 @@ from pynput import keyboard as pk
 from PIL import Image
 
 SR = 16000
+SYSTEM_PROMPT = ""
 
 def asset_path(name: str) -> str:
     if getattr(sys, 'frozen', False):
