@@ -19,6 +19,7 @@ import wave, threading, time, base64, io
 import mss
 import asyncio
 from openai import AsyncOpenAI
+from anthropic import AsyncAnthropic
 from concurrent.futures import ThreadPoolExecutor
 from pynput import keyboard as pk
 from PIL import Image
@@ -130,17 +131,26 @@ class TutorTray(QSystemTrayIcon):
         print("Icon set")
 
     def setup_api_client(self):
-        api_key = os.getenv('OPENAI_API_KEY')
-        if not api_key:
-            config_path = os.path.expanduser('~/.tutor_config')
+        openai_api_key = os.getenv('OPENAI_API_KEY')
+        if not openai_api_key:
+            config_path = os.path.expanduser('~/.tutor_openai')
             if os.path.exists(config_path):
                 with open(config_path, 'r') as f:
-                    api_key = f.read().strip()
+                    openai_api_key = f.read().strip()
             else:
-                # Show login dialog here if you want
                 QMessageBox.critical(None, "Error", "OPENAI_API_KEY is not set")
                 sys.exit(1)
-        self.client = AsyncOpenAI(api_key=api_key)
+        anthropic_api_key = os.getenv('ANTHROPIC_API_KEY')
+        if not anthropic_api_key:
+            config_path = os.path.expanduser('~/.tutor_anthropic')
+            if os.path.exists(config_path):
+                with open(config_path, 'r') as f:
+                    anthropic_api_key = f.read().strip()
+            else:
+                QMessageBox.critical(None, "Error", "ANTHROPIC_API_KEY is not set")
+                sys.exit(1)
+        self.client = AsyncOpenAI(api_key=openai_api_key)
+        self.anthropic_client = AsyncAnthropic(api_key=anthropic_api_key)
 
     def create_menu(self):
         menu = QMenu()
@@ -288,7 +298,7 @@ class TutorTray(QSystemTrayIcon):
             spk_task = asyncio.create_task(speaker())
             
             print("Pipeline: LLM streaming started")
-            async for chunk in self._llm(transcript, screenshot):
+            async for chunk in self._claude_llm(transcript, screenshot):
                 response += chunk
                 sentence_buf += chunk
                 if any(sentence_buf.endswith(p) for p in [".", "?", "!"]) and len(sentence_buf) > 12:
@@ -355,13 +365,35 @@ class TutorTray(QSystemTrayIcon):
             stream=True
         )
         print("LLM: Response stream opened")
-
-
         async for chunk in response:
             delta = chunk.choices[0].delta.content
             if delta:
                 yield delta
         print("LLM: Response stream closed")
+
+    async def _claude_llm(self, prompt, screenshot):
+        print("Claude: Starting request")
+        image_payload = self._downscale_image(screenshot)
+        async with self.anthropic_client.messages.stream(
+            model="claude-opus-4-1-20250805",
+            max_tokens=500,
+            messages=[
+                {
+                    'role': 'user',
+                    'content': [
+                        {'type': 'text', 'text': prompt},
+                        {'type': 'image', 'source': {
+                            'type': 'base64',
+                            'media_type': 'image/jpeg',
+                            'data': image_payload.split(',')[1]
+                        }}
+                    ]
+                }
+            ],
+            system=SYSTEM_PROMPT
+        ) as stream:
+            async for chunk in stream.text_stream:
+                yield chunk
     
     async def _tts(self, text):
         print("TTS: Starting synthesis")
