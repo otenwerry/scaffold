@@ -336,9 +336,9 @@ class TutorTray(QSystemTrayIcon):
         print("LLM: Starting request")
         image_payload = self._downscale_image(screenshot)
         response = await self.client.chat.completions.create(
-            model="gpt-5",
+            model="gpt-4o",
             #max_completion_tokens=800,
-            #max_tokens=500,
+            max_tokens=500,
             messages=[
                 {
                     'role': 'system',
@@ -355,6 +355,7 @@ class TutorTray(QSystemTrayIcon):
             stream=True
         )
         print("LLM: Response stream opened")
+
 
         async for chunk in response:
             delta = chunk.choices[0].delta.content
