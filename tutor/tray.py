@@ -66,6 +66,9 @@ class LoginDialog(QDialog):
 class TutorTray(QSystemTrayIcon):
     show_notification = Signal(str, str, str)
     update_status = Signal(str)
+    toggle_ask = Signal()
+    show_error = Signal(str)
+    pipeline_complete = Signal(dict)
     def __init__(self, app):
         super().__init__()
         self.app = app
@@ -88,9 +91,13 @@ class TutorTray(QSystemTrayIcon):
         self.show_notification.connect(self._show_notification)
         self.update_status.connect(self._update_status)
 
+        self.toggle_ask.connect(self.on_ask, Qt.ConnectionType.QueuedConnection)
+        self.show_error.connect(self._show_error, Qt.ConnectionType.QueuedConnection)
+        self.pipeline_complete.connect(self._on_pipeline_complete, Qt.ConnectionType.QueuedConnection)
+
         # Set up global hotkey 
         self._ghk = pk.GlobalHotKeys({
-            '<f9>': lambda: self.on_ask()
+            '<f9>': lambda: self.toggle_ask.emit()
         })
         self._ghk.daemon = True
         self._ghk.start()
@@ -209,6 +216,10 @@ class TutorTray(QSystemTrayIcon):
         # Qt's showMessage only takes title and message
         full_message = f"{subtitle}\n{message}" if subtitle else message
         self.showMessage(title, full_message)
+
+    @Slot(str)
+    def _show_error(self, message):
+        QMessageBox.critical(None, "Error", message)
 
     def on_ask(self):
         print("UI: Ask button clicked")
@@ -450,7 +461,13 @@ class TutorTray(QSystemTrayIcon):
             png_bytes, 
             wav_io
         )
-        future.add_done_callback(self._on_pipeline_complete)
+        def _emit_result(future):
+            try:
+                result = future.result()
+            except Exception as e:
+                result = {'error': str(e)}
+            self.pipeline_complete.emit(result)
+        future.add_done_callback(_emit_result)
         print("Pipeline: Future submitted and callback attached")
     
     def _run_pipeline(self, screenshot, recording):
@@ -467,36 +484,27 @@ class TutorTray(QSystemTrayIcon):
             loop.close()
             print("Pipeline: Event loop closed")
 
-    def _on_pipeline_complete(self, future):
+    def _on_pipeline_complete(self, result):
         print("Pipeline: Completion callback invoked")
-        try:
-            result = future.result()
-            if 'error' in result:
-                print(f"Pipeline: Error in result: {result['error']}")
-                QMessageBox.critical(None, "Error", f"An error occurred: {result['error']}")
-                self.update_status.emit("Error")
-                self.processing = False
-                return
-            
-
-            print("Audio played inline via sentence level TTS")
-
-            transcript = result['transcript']
-            response = result['response']
-            self.show_notification.emit(
-                "Tutor",
-                f"Q: {transcript[:50]}...",
-                f"A: {response[:100]}..."
-            )
-            self.update_status.emit("Ready")
-            self.processing = False
-            print("Pipeline: Completed successfully")
-
-        except Exception as e:
-            print(f"Pipeline: Exception in completion handler: {e}")
-            QMessageBox.critical(None, "Error", f"An error occurred: {e}")
+        if 'error' in result:
+            print(f"Pipeline: Error in result: {result['error']}")
+            self.show_error.emit(f"An error occurred: {result['error']}")
             self.update_status.emit("Error")
             self.processing = False
+            return
+        
+        print("Audio played inline via sentence level TTS")
+        transcript = result['transcript']
+        response = result['response']
+        self.show_notification.emit(
+            "Tutor",
+            f"Q: {transcript[:50]}...",
+            f"A: {response[:100]}..."
+        )
+        self.update_status.emit("Ready")
+        self.processing = False
+        print("Pipeline: Completed successfully")
+
 
 def main():
     print("Main: Launching TutorTray app")
