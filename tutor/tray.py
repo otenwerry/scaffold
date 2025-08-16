@@ -385,7 +385,9 @@ class TutorTray(QSystemTrayIcon):
         
     async def _claude_llm_text(self, prompt, screenshot):
         print("Claude: Starting request")
-        extracted = await self._ocr(screenshot)
+        downscaled_image = self._downscale_image(screenshot)
+        image_data = base64.b64decode(downscaled_image.split(',')[1])
+        extracted = await self._ocr(image_data)
         if not extracted:
             print("Falling back to image mode")
             async for chunk in self._claude_llm_image(prompt, screenshot):
