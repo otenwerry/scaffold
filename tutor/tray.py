@@ -336,9 +336,9 @@ class TutorTray(QSystemTrayIcon):
         print("LLM: Starting request")
         image_payload = self._downscale_image(screenshot)
         response = await self.client.chat.completions.create(
-            model="gpt-4o-mini",
+            model="gpt-5",
             #max_completion_tokens=800,
-            max_tokens=500,
+            #max_tokens=500,
             messages=[
                 {
                     'role': 'system',
@@ -509,6 +509,7 @@ class TutorTray(QSystemTrayIcon):
 
 
 def main():
+    global SYSTEM_PROMPT
     print("Main: Launching TutorTray app")
     #app = TutorTray()
     app = QApplication(sys.argv)
