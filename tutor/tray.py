@@ -24,8 +24,12 @@ from concurrent.futures import ThreadPoolExecutor
 from pynput import keyboard as pk
 from PIL import Image
 import pytesseract
+from collections import deque
 
 SR = 16000
+FRAME_MS = 20 #20ms frames
+BLOCKSIZE = int(SR * FRAME_MS / 1000) #20ms blocks
+RING_SECONDS = 60 #60 seconds of audio to buffer
 SYSTEM_PROMPT = ""
 
 def asset_path(name: str) -> str:
@@ -78,7 +82,8 @@ class TutorTray(QSystemTrayIcon):
         self.setup_icon()
         self.setup_api_client()
         self.is_recording = False
-        self._buf = [] # audio buffer
+        #self._buf = [] # audio buffer
+        self._buf = deque(maxlen=(RING_SECONDS * SR) // BLOCKSIZE) 
         self._lock = threading.Lock() # lock for buffer
         self._stream = None # audio stream     
         #debug state
@@ -259,7 +264,7 @@ class TutorTray(QSystemTrayIcon):
         now = time.time()
         if now - self._last_cb_log > 1.0:
             self._last_cb_log = now
-            print(f"[cb] frames+={frames}, total={self._frames}, rms={rms:.5f}")
+            #print(f"[cb] frames+={frames}, total={self._frames}, rms={rms:.5f}")
 
     async def _stt(self, recording):
         print("STT: Starting transcription")
@@ -335,11 +340,19 @@ class TutorTray(QSystemTrayIcon):
         self._buf.clear()
         self._frames = 0
         self._stream = sd.InputStream(
+            samplerate=SR,
+            channels=1,
+            dtype="float32",
+            blocksize=BLOCKSIZE,     # 20 ms blocks
+            callback=self._audio_cb
+        )
+        """
+        self._stream = sd.InputStream(
             samplerate=SR, 
             channels=1, 
             dtype="float32", 
             callback=self._audio_cb
-        )
+        )"""
         self._stream.start()
         self.is_recording = True
         self.update_status.emit("Recording")
@@ -362,7 +375,11 @@ class TutorTray(QSystemTrayIcon):
         
         # Process the audio buffer
         with self._lock:
-            audio = np.concatenate(self._buf, axis=0) if self._buf else np.zeros((0, 1), dtype="float32")
+            if self._buf:
+                audio = np.concatenate(list(self._buf), axis=0)   # (N, 1) float32
+            else:
+                audio = np.zeros((0, 1), dtype="float32")
+
         print(f"Recording: Captured frames={self._frames}, samples={audio.size}")
         
         if audio.size == 0:
