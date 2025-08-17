@@ -358,6 +358,15 @@ class TutorTray(QSystemTrayIcon):
         self.update_status.emit("Recording")
         print("Recording: Started")
 
+    def _trim_silence(self, samples, threshold=500, pad_start=0.02, pad_end=0.10):
+        a = np.abs(samples.astype(np.int16))
+        nz = np.where(a > threshold)[0]
+        if len(nz) == 0:
+            return samples
+        start = max(nz[0] - int(pad_start * SR), 0)
+        end = min(nz[-1] + int(pad_end * SR), len(samples))
+        return samples[start:end]
+
     def _stop_recording_and_process(self):
         print("Recording: Stop requested")
         if not self.is_recording:
@@ -389,13 +398,21 @@ class TutorTray(QSystemTrayIcon):
             return
         
         # Convert audio to WAV format
-        audio_int16 = (audio.flatten() * 32767).astype(np.int16)
+        audio_int16 = np.clip(audio.flatten() * 32767, -32768, 32767).astype(np.int16)
+        _thresh = 500
+        if not (np.abs(audio_int16) > _thresh).any():
+            self.update_status.emit("No audio above threshold")
+            self.show_notification.emit("Tutor", "", "No audio above threshold.")
+            print("Recording: No audio above threshold")
+            return
+        trimmed = self._trim_silence(audio_int16, threshold=_thresh)
+        print(f"Recording: Trimmed audio from {audio_int16.size} to {trimmed.size} samples")
         wav_io = io.BytesIO()
         with wave.open(wav_io, "wb") as wf:
             wf.setnchannels(1)
             wf.setsampwidth(2)
             wf.setframerate(SR)
-            wf.writeframes(audio_int16.tobytes())
+            wf.writeframes(trimmed.tobytes())
         wav_io.seek(0)
         wav_io.name = "tutor-recording.wav"
         print("Recording: WAV prepared")
