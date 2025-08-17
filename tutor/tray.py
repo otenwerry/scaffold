@@ -265,8 +265,10 @@ class TutorTray(QSystemTrayIcon):
     async def _async_pipeline(self, screenshot, recording):
         print("Pipeline: Started")
         try:
-            transcript = await self._stt(recording)
-            print("Pipeline: STT completed")
+            stt_task = asyncio.create_task(self._stt(recording))
+            ocr_task = asyncio.create_task(self._ocr(screenshot))
+            transcript, ocr_text = await asyncio.gather(stt_task, ocr_task)
+            print("Pipeline: STT and OCRcompleted")
             response = ""
             sentence_buf = ""
 
@@ -299,7 +301,7 @@ class TutorTray(QSystemTrayIcon):
             spk_task = asyncio.create_task(speaker())
             
             print("Pipeline: LLM streaming started")
-            async for chunk in self._claude_llm_text(transcript, screenshot):
+            async for chunk in self._claude_llm_text(transcript, screenshot, ocr_text):
                 response += chunk
                 sentence_buf += chunk
                 if any(sentence_buf.endswith(p) for p in [".", "?", "!"]) and len(sentence_buf) > 12:
@@ -383,18 +385,9 @@ class TutorTray(QSystemTrayIcon):
             print(f"OCR: Error occurred: {e}")
             return ""
         
-    async def _claude_llm_text(self, prompt, screenshot):
+    async def _claude_llm_text(self, prompt, screenshot, ocr_text):
         print("Claude: Starting request")
-        #downscaled_image = self._downscale_image(screenshot)
-        #image_data = base64.b64decode(downscaled_image.split(',')[1])
-        #extracted = await self._ocr(image_data)
-        extracted = await self._ocr(screenshot)
-        if not extracted:
-            print("Falling back to image mode")
-            async for chunk in self._claude_llm_image(prompt, screenshot):
-                yield chunk
-            return
-        combined_prompt = f"{prompt}\n\nScreen content:\n{extracted}"
+        combined_prompt = f"{prompt}\n\nScreen content:\n{ocr_text}"
         print(f"Combined prompt: {combined_prompt}")
         async with self.anthropic_client.messages.stream(
             model="claude-opus-4-1-20250805",
