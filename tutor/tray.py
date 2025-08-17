@@ -150,7 +150,7 @@ class TutorTray(QSystemTrayIcon):
             else:
                 QMessageBox.critical(None, "Error", "ANTHROPIC_API_KEY is not set")
                 sys.exit(1)
-        self.client = AsyncOpenAI(api_key=openai_api_key)
+        self.openai_client = AsyncOpenAI(api_key=openai_api_key)
         self.anthropic_client = AsyncAnthropic(api_key=anthropic_api_key)
 
     def create_menu(self):
@@ -189,7 +189,6 @@ class TutorTray(QSystemTrayIcon):
         
         self.setContextMenu(menu)
         
-
     def show_login(self):
         dialog = LoginDialog()
         if dialog.exec() == QDialog.DialogCode.Accepted:
@@ -262,117 +261,15 @@ class TutorTray(QSystemTrayIcon):
             self._last_cb_log = now
             print(f"[cb] frames+={frames}, total={self._frames}, rms={rms:.5f}")
 
-    async def _async_pipeline(self, screenshot, recording):
-        print("Pipeline: Started")
-        try:
-            stt_task = asyncio.create_task(self._stt(recording))
-            ocr_task = asyncio.create_task(self._ocr(screenshot))
-            transcript, ocr_text = await asyncio.gather(stt_task, ocr_task)
-            print("Pipeline: STT and OCRcompleted")
-            response = ""
-            sentence_buf = ""
-
-            q = asyncio.Queue()
-            async def speaker():
-                loop = asyncio.get_running_loop()
-                next_task = None
-                while True:
-                    s = await q.get()
-                    if s is None:
-                        q.task_done()
-                        break
-                    s = s.strip()
-                    if not s:
-                        q.task_done()
-                        continue
-                    if next_task is None:
-                        next_task = asyncio.create_task(self._tts(s))
-                        q.task_done()
-                        continue
-                    curr_task = asyncio.create_task(self._tts(s))
-                    audio_prev = await next_task
-                    await loop.run_in_executor(None, lambda: self.play_audio(audio_prev, wait=True))
-                    next_task = curr_task
-                    q.task_done()
-                if next_task:
-                    audio_last = await next_task
-                    await loop.run_in_executor(None, lambda: self.play_audio(audio_last, wait=True))
-            
-            spk_task = asyncio.create_task(speaker())
-            
-            print("Pipeline: LLM streaming started")
-            async for chunk in self._claude_llm_text(transcript, screenshot, ocr_text):
-                response += chunk
-                sentence_buf += chunk
-                if any(sentence_buf.endswith(p) for p in [".", "?", "!"]) and len(sentence_buf) > 12:
-                    await q.put(sentence_buf)
-                    sentence_buf = ""
-            #flush remainder
-            if sentence_buf.strip():
-                await q.put(sentence_buf)
-            await q.put(None)
-            await spk_task
-            print("Pipeline: LLM streaming completed")
-            print("Pipeline: TTS completed")
-            return {
-                'transcript': transcript,
-                'response': response,
-                'audio_response': None
-            }
-        except Exception as e:
-            print(f"Pipeline: Error occurred: {e}")
-            return {
-                'error': str(e)
-            }
-    
     async def _stt(self, recording):
         print("STT: Starting transcription")
         recording.seek(0)
-        result = await self.client.audio.transcriptions.create(
+        result = await self.openai_client.audio.transcriptions.create(
             model="gpt-4o-mini-transcribe",
             file=recording
         )
         print("STT: Transcription finished")
         return result.text
-    
-    def _downscale_image(self, image, max_w=1024, quality=80):
-        im = Image.open(io.BytesIO(image)).convert("RGB")
-        w, h = im.size
-        if w > max_w:
-            im = im.resize((max_w, int(h * max_w / w)), Image.Resampling.LANCZOS)
-        out = io.BytesIO()
-        im.save(out, format="JPEG", quality=quality, optimize=True)
-        b64 = base64.b64encode(out.getvalue()).decode('ascii')
-        return f'data:image/jpeg;base64,{b64}'
-    
-    async def _llm(self, prompt, screenshot):
-        print("LLM: Starting request")
-        image_payload = self._downscale_image(screenshot)
-        response = await self.client.chat.completions.create(
-            model="gpt-4o",
-            #max_completion_tokens=800,
-            max_tokens=500,
-            messages=[
-                {
-                    'role': 'system',
-                    'content': SYSTEM_PROMPT
-                },
-                {
-                    'role': 'user',
-                    'content': [
-                        {'type': 'text', 'text': prompt},
-                        {'type': 'image_url', 'image_url': {'url': image_payload}}
-                    ]
-                }
-            ],
-            stream=True
-        )
-        print("LLM: Response stream opened")
-        async for chunk in response:
-            delta = chunk.choices[0].delta.content
-            if delta:
-                yield delta
-        print("LLM: Response stream closed")
 
     async def _ocr(self, screenshot):
         print("OCR: Starting request")
@@ -385,7 +282,7 @@ class TutorTray(QSystemTrayIcon):
             print(f"OCR: Error occurred: {e}")
             return ""
         
-    async def _claude_llm_text(self, prompt, screenshot, ocr_text):
+    async def _claude_llm_text(self, prompt, ocr_text):
         print("Claude: Starting request")
         combined_prompt = f"{prompt}\n\nScreen content:\n{ocr_text}"
         print(f"Combined prompt: {combined_prompt}")
@@ -405,34 +302,9 @@ class TutorTray(QSystemTrayIcon):
             async for chunk in stream.text_stream:
                 yield chunk
 
-    async def _claude_llm_image(self, prompt, screenshot):
-        print("Claude: Starting request")
-        image_payload = self._downscale_image(screenshot)
-        print(f"Prompt: {prompt}")
-        async with self.anthropic_client.messages.stream(
-            model="claude-opus-4-1-20250805",
-            max_tokens=500,
-            messages=[
-                {
-                    'role': 'user',
-                    'content': [
-                        {'type': 'text', 'text': prompt},
-                        {'type': 'image', 'source': {
-                            'type': 'base64',
-                            'media_type': 'image/jpeg',
-                            'data': image_payload.split(',')[1]
-                        }}
-                    ]
-                }
-            ],
-            system=SYSTEM_PROMPT
-        ) as stream:
-            async for chunk in stream.text_stream:
-                yield chunk
-    
     async def _tts(self, text):
         print("TTS: Starting synthesis")
-        response = await self.client.audio.speech.create(
+        response = await self.openai_client.audio.speech.create(
             model="gpt-4o-mini-tts",
             input=text,
             voice="alloy",
@@ -539,7 +411,70 @@ class TutorTray(QSystemTrayIcon):
             self.pipeline_complete.emit(result)
         future.add_done_callback(_emit_result)
         print("Pipeline: Future submitted and callback attached")
-    
+ 
+    async def _async_pipeline(self, screenshot, recording):
+        print("Pipeline: Started")
+        try:
+            stt_task = asyncio.create_task(self._stt(recording))
+            ocr_task = asyncio.create_task(self._ocr(screenshot))
+            transcript, ocr_text = await asyncio.gather(stt_task, ocr_task)
+            print("Pipeline: STT and OCRcompleted")
+            response = ""
+            sentence_buf = ""
+
+            q = asyncio.Queue()
+            async def speaker():
+                loop = asyncio.get_running_loop()
+                next_task = None
+                while True:
+                    s = await q.get()
+                    if s is None:
+                        q.task_done()
+                        break
+                    s = s.strip()
+                    if not s:
+                        q.task_done()
+                        continue
+                    if next_task is None:
+                        next_task = asyncio.create_task(self._tts(s))
+                        q.task_done()
+                        continue
+                    curr_task = asyncio.create_task(self._tts(s))
+                    audio_prev = await next_task
+                    await loop.run_in_executor(None, lambda: self.play_audio(audio_prev, wait=True))
+                    next_task = curr_task
+                    q.task_done()
+                if next_task:
+                    audio_last = await next_task
+                    await loop.run_in_executor(None, lambda: self.play_audio(audio_last, wait=True))
+            
+            spk_task = asyncio.create_task(speaker())
+            
+            print("Pipeline: LLM streaming started")
+            async for chunk in self._claude_llm_text(transcript, ocr_text):
+                response += chunk
+                sentence_buf += chunk
+                if any(sentence_buf.endswith(p) for p in [".", "?", "!"]) and len(sentence_buf) > 12:
+                    await q.put(sentence_buf)
+                    sentence_buf = ""
+            #flush remainder
+            if sentence_buf.strip():
+                await q.put(sentence_buf)
+            await q.put(None)
+            await spk_task
+            print("Pipeline: LLM streaming completed")
+            print("Pipeline: TTS completed")
+            return {
+                'transcript': transcript,
+                'response': response,
+                'audio_response': None
+            }
+        except Exception as e:
+            print(f"Pipeline: Error occurred: {e}")
+            return {
+                'error': str(e)
+            }
+       
     def _run_pipeline(self, screenshot, recording):
         print("Pipeline: Running in worker thread")
         loop = asyncio.new_event_loop()
