@@ -454,7 +454,7 @@ class TutorTray(QSystemTrayIcon):
             async for chunk in self._claude_llm_text(transcript, ocr_text):
                 response += chunk
                 sentence_buf += chunk
-                if any(sentence_buf.endswith(p) for p in [".", "?", "!"]) and len(sentence_buf) > 12:
+                if any(sentence_buf.endswith(p) for p in [".", "?", "!"]):
                     await q.put(sentence_buf)
                     sentence_buf = ""
             #flush remainder
