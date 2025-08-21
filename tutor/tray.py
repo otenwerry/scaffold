@@ -326,7 +326,7 @@ class TutorTray(QSystemTrayIcon):
             print(f"OCR: Error occurred: {e}")
             return ""
         
-    async def _claude_llm_text(self, prompt, ocr_text):
+    async def _llm(self, prompt, ocr_text):
         print("Claude: Starting request")
         combined_prompt = f"{prompt}\n\nScreen content:\n{ocr_text}"
         print(f"Combined prompt: {combined_prompt}")
@@ -532,7 +532,7 @@ class TutorTray(QSystemTrayIcon):
             spk_task = asyncio.create_task(speaker())
             
             print("Pipeline: LLM streaming started")
-            async for chunk in self._claude_llm_text(transcript, ocr_text):
+            async for chunk in self._llm(transcript, ocr_text):
                 response += chunk
                 sentence_buf += chunk
                 if any(sentence_buf.endswith(p) for p in [".", "?", "!"]):
