@@ -76,6 +76,7 @@ class TutorTray(QSystemTrayIcon):
     toggle_ask = Signal()
     show_error = Signal(str)
     pipeline_complete = Signal(dict)
+    audio_started = Signal()
     def __init__(self, app):
         super().__init__()
         self.app = app
@@ -102,6 +103,21 @@ class TutorTray(QSystemTrayIcon):
         self.toggle_ask.connect(self.on_ask, Qt.ConnectionType.QueuedConnection)
         self.show_error.connect(self._show_error, Qt.ConnectionType.QueuedConnection)
         self.pipeline_complete.connect(self._on_pipeline_complete, Qt.ConnectionType.QueuedConnection)
+
+        #thinking animation
+        self._base_icon = QIcon(asset_path("icon.png"))
+        self._thinking_icons = [
+            QIcon(asset_path("icon1.png")),
+            QIcon(asset_path("icon2.png")),
+            QIcon(asset_path("icon3.png"))
+        ]
+        self._thinking_index = 0
+        self._animating = False
+        self._first_audio_played = False
+        self.animation_timer = QTimer(self)
+        self.animation_timer.setInterval(250)
+        self.animation_timer.timeout.connect(self._tick_thinking_icon)
+        self.audio_started.connect(self.stop_thinking_animation)
 
         # Set up global hotkey 
         self._ghk = pk.GlobalHotKeys({
@@ -135,6 +151,27 @@ class TutorTray(QSystemTrayIcon):
             painter.end()
             self.setIcon(QIcon(pixmap))
         print("Icon set")
+    
+    def start_thinking_animation(self):
+        if self._animating:
+            return
+        self._thinking_index = 0
+        self._animating = True
+        self.setIcon(self._thinking_icons[self._thinking_index])
+        self.animation_timer.start()
+    
+    def stop_thinking_animation(self):
+        if not self._animating:
+            return
+        self.animation_timer.stop()
+        self._animating = False
+        self.setIcon(self._base_icon)
+
+    def _tick_thinking_icon(self):
+        if not self._animating:
+            return
+        self._thinking_index = (self._thinking_index + 1) % len(self._thinking_icons)
+        self.setIcon(self._thinking_icons[self._thinking_index])
 
     def setup_api_client(self):
         openai_api_key = os.getenv('OPENAI_API_KEY')
@@ -212,6 +249,8 @@ class TutorTray(QSystemTrayIcon):
     def quit_app(self):
         """Clean shutdown"""
         self.is_recording = False
+        self.stop_thinking_animation()
+        self.setIcon(self._base_icon)
         if self._stream:
             self._stream.stop()
             self._stream.close()
@@ -321,6 +360,12 @@ class TutorTray(QSystemTrayIcon):
     def play_audio(self, audio_bytes, wait=False):
         print("Audio: Preparing playback")
         try:
+            if not self._first_audio_played:
+                self._first_audio_played = True
+                try:
+                    self.audio_started.emit()
+                except Exception as _:
+                    pass
             with wave.open(io.BytesIO(audio_bytes), 'rb') as wav:
                 frames = wav.readframes(wav.getnframes())
                 audio = np.frombuffer(frames, dtype=np.int16)
@@ -427,6 +472,8 @@ class TutorTray(QSystemTrayIcon):
         
         # Now process with AI
         self.processing = True
+        self._first_audio_played = False
+        self.start_thinking_animation()
         self.update_status.emit("Processing with AI")
         self.show_notification.emit("Tutor", "", "Processing your question")
         print("Pipeline: Submitting to executor")
@@ -525,6 +572,7 @@ class TutorTray(QSystemTrayIcon):
 
     def _on_pipeline_complete(self, result):
         print("Pipeline: Completion callback invoked")
+        self.stop_thinking_animation()
         if 'error' in result:
             print(f"Pipeline: Error in result: {result['error']}")
             self.show_error.emit(f"An error occurred: {result['error']}")
