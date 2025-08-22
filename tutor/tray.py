@@ -59,6 +59,7 @@ class LoginDialog(QDialog):
         self.password_input = QLineEdit()
         self.password_input.setPlaceholderText("Enter your password")
         self.password_input.setEchoMode(QLineEdit.EchoMode.Password)
+        self.chat_history = deque(maxlen=4) #2 user, 2 assistant
         layout.addWidget(self.password_input)
 
         buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
@@ -326,21 +327,22 @@ class TutorTray(QSystemTrayIcon):
             print(f"OCR: Error occurred: {e}")
             return ""
         
-    async def _llm(self, prompt, ocr_text):
+    async def _llm(self, combined_prompt):
         print("Claude: Starting request")
-        combined_prompt = f"{prompt}\n\nScreen content:\n{ocr_text}"
-        print(f"Combined prompt: {combined_prompt}")
+        prior = list(self.chat_history)
+        messages = prior + [
+            {
+                'role': 'user',
+                'content': [
+                    {'type': 'text', 'text': combined_prompt}
+                ]
+            }
+        ]
+        print(f"Messages: {messages}")
         async with self.anthropic_client.messages.stream(
             model="claude-opus-4-1-20250805",
             max_tokens=500,
-            messages=[
-                {
-                    'role': 'user',
-                    'content': [
-                        {'type': 'text', 'text': combined_prompt}
-                    ]
-                }
-            ],
+            messages=messages,
             system=SYSTEM_PROMPT
         ) as stream:
             async for chunk in stream.text_stream:
@@ -500,6 +502,7 @@ class TutorTray(QSystemTrayIcon):
             ocr_task = asyncio.create_task(self._ocr(screenshot))
             transcript, ocr_text = await asyncio.gather(stt_task, ocr_task)
             print("Pipeline: STT and OCRcompleted")
+            combined_prompt = f"{transcript}\n\nScreen content:\n{ocr_text}"
             response = ""
             sentence_buf = ""
 
@@ -532,7 +535,7 @@ class TutorTray(QSystemTrayIcon):
             spk_task = asyncio.create_task(speaker())
             
             print("Pipeline: LLM streaming started")
-            async for chunk in self._llm(transcript, ocr_text):
+            async for chunk in self._llm(combined_prompt):
                 response += chunk
                 sentence_buf += chunk
                 if any(sentence_buf.endswith(p) for p in [".", "?", "!"]):
@@ -545,6 +548,24 @@ class TutorTray(QSystemTrayIcon):
             await spk_task
             print("Pipeline: LLM streaming completed")
             print("Pipeline: TTS completed")
+            
+            #add the response to the chat history
+            try:
+                self.chat_history.append({
+                    'role': 'user',
+                    'content': [
+                        {'type': 'text', 'text': combined_prompt}
+                    ]
+                })
+                self.chat_history.append({
+                    'role': 'assistant',
+                    'content': [
+                        {'type': 'text', 'text': response}
+                    ]
+                })
+            except Exception as e:
+                print(f"Pipeline: Error adding to chat history: {e}")
+            
             return {
                 'transcript': transcript,
                 'response': response,
