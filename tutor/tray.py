@@ -288,6 +288,24 @@ class TutorTray(QSystemTrayIcon):
             self.ask_action.setText("Start Asking (F9)")
             print("UI: Exiting asking mode")
             self._stop_recording_and_process()
+            if not getattr(self, 'chat_history', None):
+                self.executor.submit(self._say_preamble)
+
+    def _say_preamble(self):
+        print("Preamble: Starting")
+        try:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            audio = loop.run_until_complete(self._tts("Hmm, let me think."))
+            self.play_audio(audio, wait=False)
+        except Exception as e:
+            print(f"Preamble: TTS error: {e}")
+        finally:
+            try:
+                loop.close()
+            except Exception as _:
+                pass
+
 
     def _audio_cb(self, indata, frames, t, status):
         if status:
