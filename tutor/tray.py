@@ -1,8 +1,15 @@
 import sys
 import os
 if getattr(sys, 'frozen', False):
-    sys.stdout = open(os.devnull, 'w')
-    sys.stderr = open(os.devnull, 'w')
+    try:
+        log_path = os.path.expanduser("~/Library/Logs/Tutor.log")
+        sys.stdout = open(log_path, 'a', buffering=1)
+        sys.stderr = sys.stdout
+        print("\n--- Tutor started (frozen) ---")
+    except Exception as e:
+        sys.stdout = open(os.devnull, 'w')
+        sys.stderr = sys.stdout
+
 
 from PySide6.QtWidgets import (QApplication, QSystemTrayIcon, QMenu, 
                               QMainWindow, QVBoxLayout, QWidget, 
@@ -486,10 +493,18 @@ class TutorTray(QSystemTrayIcon):
         # Take screenshot automatically
         self.update_status.emit("Taking screenshot")
         print("Screenshot: Capturing screen")
-        with mss.mss() as sct:
-            img = sct.grab(sct.monitors[0])
-            png_bytes = mss.tools.to_png(img.rgb, img.size)
-        print("Screenshot: Capture complete")
+        try:
+            with mss.mss() as sct:
+                img = sct.grab(sct.monitors[0])
+                png_bytes = mss.tools.to_png(img.rgb, img.size)
+            print("Screenshot: Capture complete")
+            if not png_bytes:
+                self.show_notification.emit("Tutor", "", "No screenshot captured.")
+        except Exception as e:
+            self.show_notification.emit("Tutor", "", "Error capturing screenshot.")
+            print(f"Screenshot: Error occurred: {e}")
+            png_bytes = b""
+        
         
         # Now process with AI
         self.processing = True
