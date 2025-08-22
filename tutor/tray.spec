@@ -26,6 +26,7 @@ a = Analysis(
         'mss',
         'openai',
         'pynput.keyboard',
+        'pytesseract',
     ],
     hookspath=[],
     hooksconfig={},
