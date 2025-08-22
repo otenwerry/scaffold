@@ -298,6 +298,7 @@ class TutorTray(QSystemTrayIcon):
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
             audio = loop.run_until_complete(self._tts("Hmm, let me think."))
+            self._first_audio_played = True
             self.play_audio(audio, wait=False)
         except Exception as e:
             print(f"Preamble: TTS error: {e}")
