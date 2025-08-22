@@ -59,7 +59,6 @@ class LoginDialog(QDialog):
         self.password_input = QLineEdit()
         self.password_input.setPlaceholderText("Enter your password")
         self.password_input.setEchoMode(QLineEdit.EchoMode.Password)
-        self.chat_history = deque(maxlen=4) #2 user, 2 assistant
         layout.addWidget(self.password_input)
 
         buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
@@ -87,7 +86,8 @@ class TutorTray(QSystemTrayIcon):
         #self._buf = [] # audio buffer
         self._buf = deque(maxlen=(RING_SECONDS * SR) // BLOCKSIZE) 
         self._lock = threading.Lock() # lock for buffer
-        self._stream = None # audio stream     
+        self._stream = None # audio stream   
+        self.chat_history = deque(maxlen=4) #2 user, 2 assistant
         #debug state
         self._last_rms = 0.0
         self._frames = 0
