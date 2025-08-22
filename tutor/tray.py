@@ -106,11 +106,12 @@ class TutorTray(QSystemTrayIcon):
         self.pipeline_complete.connect(self._on_pipeline_complete, Qt.ConnectionType.QueuedConnection)
 
         #thinking animation
-        self._base_icon = QIcon(asset_path("icon.png"))
+        self._base_icon = QIcon(asset_path("logos/icon.png"))
         self._thinking_icons = [
-            QIcon(asset_path("icon1.png")),
-            QIcon(asset_path("icon2.png")),
-            QIcon(asset_path("icon3.png"))
+            QIcon(asset_path("logos/gray.png")),
+            QIcon(asset_path("logos/blue1.png")),
+            QIcon(asset_path("logos/blue2.png")),
+            QIcon(asset_path("logos/blue3.png"))
         ]
         self._thinking_index = 0
         self._animating = False
@@ -142,7 +143,7 @@ class TutorTray(QSystemTrayIcon):
     def setup_icon(self):
         print("Setting up icon")
         try:
-            self.setIcon(QIcon(asset_path("icon.png")))
+            self.setIcon(QIcon(asset_path("logos/icon.png")))
         except:
             pixmap = QPixmap(32, 32)
             pixmap.fill(Qt.GlobalColor.transparent)
