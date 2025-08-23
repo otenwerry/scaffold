@@ -10,9 +10,13 @@ datas = [
 
 if os.path.exists("/usr/local/bin/tesseract"):
     datas += [("/usr/local/bin/tesseract", "tesseract")]
+elif os.path.exists("/opt/homebrew/bin/tesseract"):
+    datas += [("/opt/homebrew/bin/tesseract", "tesseract")]
 
 if os.path.isdir("/usr/local/share/tessdata"):
     datas += [("/usr/local/share/tessdata", "tessdata")]
+elif os.path.isdir("/opt/homebrew/share/tessdata"):
+    datas += [("/opt/homebrew/share/tessdata", "tessdata")]
 
 a = Analysis(
     ['tray.py'],
