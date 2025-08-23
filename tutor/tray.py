@@ -32,6 +32,8 @@ from pynput import keyboard as pk
 from PIL import Image
 import pytesseract
 from collections import deque
+from pathlib import Path
+from datetime import datetime
 
 SR = 16000
 FRAME_MS = 20 #20ms frames
@@ -146,6 +148,21 @@ class TutorTray(QSystemTrayIcon):
         
         # Show initial notification
         self.showMessage("Tutor", "App is running. Press F9 to ask a question.")
+    
+    def _save_screenshot(self, png_bytes) -> str | None:
+        try:
+            if not png_bytes:
+                return None
+            pics = Path.home() / "Pictures" / "Tutor"
+            pics.mkdir(parents=True, exist_ok=True)
+            now = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+            filename = f"screenshot_{now}.png"
+            path = pics / filename
+            path.write_bytes(png_bytes)
+            return str(path)
+        except Exception as e:
+            print(f"Screenshot: Error saving screenshot: {e}")
+            return None
     
     def setup_icon(self):
         print("Setting up icon")
@@ -493,6 +510,7 @@ class TutorTray(QSystemTrayIcon):
         # Take screenshot automatically
         self.update_status.emit("Taking screenshot")
         print("Screenshot: Capturing screen")
+        screenshot_path = None
         try:
             with mss.mss() as sct:
                 img = sct.grab(sct.monitors[0])
@@ -500,12 +518,17 @@ class TutorTray(QSystemTrayIcon):
             print("Screenshot: Capture complete")
             if not png_bytes:
                 self.show_notification.emit("Tutor", "", "No screenshot captured.")
+            else:
+                screenshot_path = self._save_screenshot(png_bytes)
+                if screenshot_path:
+                    self.show_notification.emit("Tutor", "Screenshot saved", screenshot_path)
+                else:
+                    self.show_notification.emit("Tutor", "", "Screenshot captured but could not be saved.")
         except Exception as e:
             self.show_notification.emit("Tutor", "", "Error capturing screenshot.")
             print(f"Screenshot: Error occurred: {e}")
             png_bytes = b""
-        
-        
+
         # Now process with AI
         self.processing = True
         self._first_audio_played = False
@@ -602,6 +625,7 @@ class TutorTray(QSystemTrayIcon):
             
             return {
                 'transcript': transcript,
+                'ocr_text': ocr_text,
                 'response': response,
                 'audio_response': None
             }
@@ -638,11 +662,25 @@ class TutorTray(QSystemTrayIcon):
         print("Audio played inline via sentence level TTS")
         transcript = result['transcript']
         response = result['response']
+        ocr_text = result['ocr_text']
         self.show_notification.emit(
             "Tutor",
             f"Q: {transcript[:50]}...",
             f"A: {response[:100]}..."
         )
+        if ocr_text:
+            trimmed = (ocr_text[:100] + "...") if len(ocr_text) > 100 else ocr_text
+            self.show_notification.emit(
+                "Tutor",
+                "OCR result",
+                trimmed
+            )
+        else:
+            self.show_notification.emit(
+                "Tutor",
+                "OCR result",
+                "No OCR result"
+            )
         self.update_status.emit("Ready")
         self.processing = False
         print("Pipeline: Completed successfully")
