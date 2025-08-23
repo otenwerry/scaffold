@@ -89,7 +89,6 @@ class TutorTray(QSystemTrayIcon):
     def __init__(self, app):
         super().__init__()
         self.app = app
-        self._active_popups = []
         self.setup_icon()
         self.setup_api_client()
         self.setup_tesseract()
@@ -229,7 +228,7 @@ class TutorTray(QSystemTrayIcon):
             print(f"Tesseract: using system binary")
         summary = "Tesseract diagnostics"
         details = "\n".join(debug_info)
-        self._popup("Tutor", summary, details)
+        print(f"Tesseract diagnostics:\n{details}")
     
     def _save_screenshot(self, png_bytes) -> str | None:
         try:
@@ -245,16 +244,6 @@ class TutorTray(QSystemTrayIcon):
         except Exception as e:
             print(f"Screenshot: Error saving screenshot: {e}")
             return None
-    
-    def _popup(self, title: str, message: str, details: str | None = None):
-        box = QMessageBox(QMessageBox.Icon.Information, title, message, parent=None)
-        if details:
-            box.setDetailedText(details)
-        box.setWindowModality(Qt.NonModal)
-        box.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
-        box.show()
-        self._active_popups.append(box)
-        box.finished.connect(lambda _: self._active_popups.remove(box) if box in self._active_popups else None)
 
     def setup_icon(self):
         print("Setting up icon")
@@ -388,7 +377,7 @@ class TutorTray(QSystemTrayIcon):
         """Thread-safe notification display"""
         # Qt's showMessage only takes title and message
         full_message = f"{subtitle}\n{message}" if subtitle else message
-        self._popup(title, full_message, "")
+        print(f"Notification: {title} - {full_message}")
 
     @Slot(str)
     def _show_error(self, message):
@@ -609,13 +598,13 @@ class TutorTray(QSystemTrayIcon):
                 png_bytes = mss.tools.to_png(img.rgb, img.size)
             print("Screenshot: Capture complete")
             if not png_bytes:
-                self._popup("Tutor", "", "No screenshot captured.")
+                print("Screenshot: No screenshot captured")
             else:
                 screenshot_path = self._save_screenshot(png_bytes)
                 if screenshot_path:
-                    self._popup("Tutor", "Screenshot saved", screenshot_path)
+                    print(f"Screenshot: Saved to {screenshot_path}")
                 else:
-                    self._popup("Tutor", "", "Screenshot captured but could not be saved.")
+                    print("Screenshot: Captured but could not be saved")
         except Exception as e:
             self.show_notification.emit("Tutor", "", "Error capturing screenshot.")
             print(f"Screenshot: Error occurred: {e}")
@@ -762,17 +751,9 @@ class TutorTray(QSystemTrayIcon):
         )
         if ocr_text:
             trimmed = (ocr_text[:100] + "...") if len(ocr_text) > 100 else ocr_text
-            self._popup(
-                "Tutor",
-                "OCR result",
-                trimmed
-            )
+            print(f"OCR result: {trimmed}")
         else:
-            self._popup(
-                "Tutor",
-                "OCR result",
-                "No OCR result"
-            )
+            print("OCR result: No OCR result")
         self.update_status.emit("Ready")
         self.processing = False
         print("Pipeline: Completed successfully")
