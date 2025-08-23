@@ -34,7 +34,6 @@ import pytesseract
 from collections import deque
 from pathlib import Path
 from datetime import datetime
-import Quartz
 
 SR = 16000
 FRAME_MS = 20 #20ms frames
@@ -177,48 +176,6 @@ class TutorTray(QSystemTrayIcon):
         self._active_popups.append(box)
         box.finished.connect(lambda _: self._active_popups.remove(box) if box in self._active_popups else None)
 
-    def _ax_is_trusted(self):
-        try:
-            opts = {Quartz.kAXTrustedCheckOptionPrompt: True}
-            return Quartz.AXIsProcessTrustedWithOptions(opts)
-        except Exception as _:
-            return False
-
-    def _ax_get_text():
-        try:
-            sys_wide = Quartz.AXUIElementCreateSystemWide()
-            err, focused = Quartz.AXUIElementCopyAttributeValue(sys_wide, Quartz.kAXFocusedUIElementAttribute)
-            if err != 0 or not focused:
-                return ""
-            err, text = Quartz.AXUIElementCopyAttributeValue(focused, Quartz.kAXVSelectedTextAttribute)
-            if err == 0 and text:
-                return str(text).strip()
-            err, val = Quartz.AXUIElementCopyAttributeValue(focused, Quartz.kAXValueAttribute)
-            if err == 0 and val:
-                return str(val).strip()
-            return ""
-        except Exception as e:
-            print(f"AX: Error getting text: {e}")
-            return ""
-
-    async def _system_text(self):
-        if sys.platform != "darwin":
-            return ""
-        try:
-            if not self._ax_is_trusted():
-                print("AX: Not trusted")
-                return ""
-        except Exception as e:
-            print(f"AX: Error checking trust: {e}")
-            return ""
-        loop = asyncio.get_running_loop()
-        text = await loop.run_in_executor(None, self._ax_get_text)
-        if text:
-            print(f"AX: Got text: {text}")
-        else:
-            print("AX: No text found")
-        return text
-    
     def setup_icon(self):
         print("Setting up icon")
         try:
@@ -611,10 +568,10 @@ class TutorTray(QSystemTrayIcon):
         print("Pipeline: Started")
         try:
             stt_task = asyncio.create_task(self._stt(recording))
-            ax_task = asyncio.create_task(self._system_text())
-            transcript, system_text = await asyncio.gather(stt_task, ax_task)
+            ocr_task = asyncio.create_task(self._ocr(screenshot))
+            transcript, ocr_text = await asyncio.gather(stt_task, ocr_task)
             print("Pipeline: STT and OCRcompleted")
-            combined_prompt = f"{transcript}\n\nScreen content:\n{system_text}"
+            combined_prompt = f"{transcript}\n\nScreen content:\n{ocr_text}"
             response = ""
             sentence_buf = ""
 
@@ -680,7 +637,7 @@ class TutorTray(QSystemTrayIcon):
             
             return {
                 'transcript': transcript,
-                'system_text': system_text,
+                'ocr_text': ocr_text,
                 'response': response,
                 'audio_response': None
             }
@@ -717,14 +674,14 @@ class TutorTray(QSystemTrayIcon):
         print("Audio played inline via sentence level TTS")
         transcript = result['transcript']
         response = result['response']
-        system_text = result['system_text']
+        ocr_text = result['ocr_text']
         self.show_notification.emit(
             "Tutor",
             f"Q: {transcript[:50]}...",
             f"A: {response[:100]}..."
         )
-        if system_text:
-            trimmed = (system_text[:100] + "...") if len(system_text) > 100 else system_text
+        if ocr_text:
+            trimmed = (ocr_text[:100] + "...") if len(ocr_text) > 100 else ocr_text
             self._popup(
                 "Tutor",
                 "OCR result",
