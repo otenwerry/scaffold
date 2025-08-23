@@ -184,7 +184,7 @@ class TutorTray(QSystemTrayIcon):
         except Exception as _:
             return False
 
-    def _ax_get_text(self):
+    def _ax_get_text():
         try:
             sys_wide = Quartz.AXUIElementCreateSystemWide()
             err, focused = Quartz.AXUIElementCopyAttributeValue(sys_wide, Quartz.kAXFocusedUIElementAttribute)
