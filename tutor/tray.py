@@ -92,6 +92,7 @@ class TutorTray(QSystemTrayIcon):
         self._active_popups = []
         self.setup_icon()
         self.setup_api_client()
+        self.setup_tesseract()
         self.is_recording = False
         #self._buf = [] # audio buffer
         self._buf = deque(maxlen=(RING_SECONDS * SR) // BLOCKSIZE) 
@@ -150,6 +151,85 @@ class TutorTray(QSystemTrayIcon):
         
         # Show initial notification
         self.showMessage("Tutor", "App is running. Press F9 to ask a question.")
+    
+    def setup_tesseract(self):
+        debug_info = []
+        if getattr(sys, 'frozen', False):
+            if sys.platform == 'darwin':
+                tesseract_path = os.path.join(
+                    os.path.dirname(sys.executable),
+                    "..",
+                    "Resources",
+                    "tesseract",
+                    "tesseract"
+                )
+                tesseract_path = os.path.normpath(tesseract_path)
+                debug_info.append(f"sys.executable: {sys.executable}")
+                debug_info.append(f"Expected tesseract at: {tesseract_path}")
+                debug_info.append(f"Path exists: {os.path.exists(tesseract_path)}")
+                if os.path.exists(tesseract_path):
+                    debug_info.append(f"Is file: {os.path.isfile(tesseract_path)}")
+                    debug_info.append(f"Is executable: {os.access(tesseract_path, os.X_OK)}")
+                    try:
+                        file_size = os.path.getsize(tesseract_path)
+                        debug_info.append(f"File size: {file_size} bytes")
+                    except:
+                        debug_info.append("Could not get file size")
+                else:
+                    parent_dir = os.path.dirname(tesseract_path)
+                    debug_info.append(f"Parent dir: {parent_dir}")
+                    debug_info.append(f"Parent exists: {os.path.exists(parent_dir)}")
+                    if os.path.exists(parent_dir):
+                        contents = os.listdir(parent_dir)
+                        debug_info.append(f"Contents of {parent_dir}: {contents[:5]}") 
+                    resources_dir = os.path.normpath(os.path.join(
+                        os.path.dirname(sys.executable), "..", "Resources"
+                    ))
+                    if os.path.exists(resources_dir):
+                        resources_contents = os.listdir(resources_dir)
+                        debug_info.append(f"Resources dir contents: {resources_contents[:10]}")
+         
+                tessdata_path = os.path.join(
+                    os.path.dirname(sys.executable),
+                    "..",
+                    "Resources",
+                    "tessdata"
+                )
+                tessdata_path = os.path.normpath(tessdata_path)
+                debug_info.append(f"Tessdata path: {tessdata_path}")
+                debug_info.append(f"Tessdata exists: {os.path.exists(tessdata_path)}")
+                if os.path.exists(tessdata_path) and os.path.isdir(tessdata_path):
+                    tessdata_files = os.listdir(tessdata_path)
+                    debug_info.append(f"Tessdata files: {tessdata_files[:3]}") 
+                os.environ['TESSDATA_PREFIX'] = tessdata_path
+                print(f"Tesseract: Found at {tessdata_path}")
+                debug_info.append(f"Tessdata path: {tessdata_path}")
+                debug_info.append(f"Tessdata exists: {os.path.exists(tessdata_path)}")
+                if os.path.exists(tessdata_path) and os.path.isdir(tessdata_path):
+                    tessdata_files = os.listdir(tessdata_path)
+                    debug_info.append(f"Tessdata files: {tessdata_files[:3]}") 
+                os.environ['TESSDATA_PREFIX'] = tessdata_path
+            else:
+                tesseract_path = os.path.join(
+                    os.path.dirname(sys.executable),
+                    "tesseract",
+                    "tesseract"
+                )
+                debug_info.append(f"Running as frozen non-macOS app")
+                debug_info.append(f"Expected tesseract at: {tesseract_path}")
+                debug_info.append(f"Path exists: {os.path.exists(tesseract_path)}")
+        
+            if os.path.exists(tesseract_path):
+                pytesseract.pytesseract.tesseract_cmd = tesseract_path
+                print(f"Tesseract: Found at {tesseract_path}")
+                debug_info.append("✓ Tesseract path set in pytesseract")
+            else:
+                print(f"Tesseract: Not found at {tesseract_path}")
+        else:
+            print(f"Tesseract: using system binary")
+        summary = "Tesseract diagnostics"
+        details = "\n".join(debug_info)
+        self._popup("Tutor", summary, details)
     
     def _save_screenshot(self, png_bytes) -> str | None:
         try:
@@ -380,7 +460,7 @@ class TutorTray(QSystemTrayIcon):
             return text.strip()
         except Exception as e:
             print(f"OCR: Error occurred: {e}")
-            return ""
+            return f"OCR: Error occurred: {e}"
         
     async def _llm(self, combined_prompt):
         print("Claude: Starting request")

@@ -9,7 +9,7 @@ datas = [
     ]
 
 if os.path.exists("/usr/local/bin/tesseract"):
-    binaries += [("/usr/local/bin/tesseract", "tesseract")]
+    datas += [("/usr/local/bin/tesseract", "tesseract")]
 
 if os.path.isdir("/usr/local/share/tessdata"):
     datas += [("/usr/local/share/tessdata", "tessdata")]
@@ -40,9 +40,7 @@ pyz = PYZ(a.pure)
 exe = EXE(
     pyz,
     a.scripts,
-    a.binaries,
-    a.datas,
-    [],
+    exclude_binaries=True,
     name='Tutor',
     debug=False,
     bootloader_ignore_signals=False,
@@ -59,8 +57,19 @@ exe = EXE(
     #icon='icon.icns',  # convert PNG to ICNS for macOS
 )
 
-app = BUNDLE(
+coll = COLLECT(
     exe,
+    a.binaries,
+    a.zipfiles,
+    a.datas,
+    strip=False,
+    upx=True,
+    upx_exclude=[],
+    name='Tutor'
+)
+
+app = BUNDLE(
+    coll,
     name='Tutor.app',
     #icon='icon.icns',
     bundle_identifier='com.yourcompany.tutor',
