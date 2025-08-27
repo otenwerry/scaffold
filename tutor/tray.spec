@@ -58,7 +58,7 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    #icon='icon.icns',  # convert PNG to ICNS for macOS
+    icon='logos/icon.icns', 
 )
 
 coll = COLLECT(
@@ -75,7 +75,7 @@ coll = COLLECT(
 app = BUNDLE(
     coll,
     name='Tutor.app',
-    #icon='icon.icns',
+    icon='logos/icon.icns',
     bundle_identifier='com.yourcompany.tutor',
     info_plist={
         'NSHighResolutionCapable': 'True',
