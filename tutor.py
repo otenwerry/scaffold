@@ -22,7 +22,7 @@ from PySide6.QtCore import Qt
 
 import sounddevice as sd
 import numpy as np
-import wave, threading, time, base64, io
+import wave, threading, time, base64, io, tempfile
 import mss
 import asyncio
 from openai import AsyncOpenAI
@@ -34,6 +34,12 @@ import pytesseract
 from collections import deque
 from pathlib import Path
 from datetime import datetime
+from Foundation import NSURL
+from Vision import (
+    VNImageRequestHandler,
+    VNRecognizeTextRequest,
+    VNRequestTextRecognitionLevelAccurate,
+)
 
 SR = 16000
 FRAME_MS = 20 #20ms frames
@@ -450,6 +456,37 @@ class TutorTray(QSystemTrayIcon):
         except Exception as e:
             print(f"OCR: Error occurred: {e}")
             return f"OCR: Error occurred: {e}"
+
+    async def _apple_ocr(self, screenshot):
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp:
+            tmp.write(screenshot)
+            tmp_path = tmp.name
+        try:
+            url = NSURL.fileURLWithPath(tmp_path)
+            request = VNRecognizeTextRequest.alloc().init()
+            request.setRecognitionLevel_(VNRequestTextRecognitionLevelAccurate)
+            request.setUsesLanguageCorrection_(True)
+            request.setRecognitionLanguages_(["en-US"])
+            handler = VNImageRequestHandler.alloc().initWithURL_options_(url, None)
+            ok, err = handler.performRequests_error_([request], None)
+            if not ok:
+                raise RuntimeError(f"Vision API: Error performing request: {err}")
+            observations = request.results() or []
+            lines = []
+            for obs in observations:
+                candidates = obs.topCandidates_(1)
+                if candidates:
+                    lines.append(str(candidates[0].string()))
+            text = "\n".join(lines)
+            print(f"OCR: Apple OCR: {len(text)} characters")
+            return text.strip()
+        finally:
+            try:
+                os.unlink(tmp_path)
+            except Exception:
+                pass
+    
+
         
     async def _llm(self, combined_prompt):
         print("Claude: Starting request")
