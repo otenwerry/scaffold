@@ -485,7 +485,7 @@ class TutorTray(QSystemTrayIcon):
                 os.unlink(tmp_path)
             except Exception:
                 pass
-    
+        
 
         
     async def _llm(self, combined_prompt):
