@@ -230,7 +230,7 @@ class TutorTray(QSystemTrayIcon):
         details = "\n".join(debug_info)
         print(f"Tesseract diagnostics:\n{details}")
     
-    def _save_screenshot(self, png_bytes) -> str | None:
+    def _save_screenshot(self, png_bytes):
         try:
             if not png_bytes:
                 return None
