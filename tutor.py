@@ -236,21 +236,6 @@ class TutorTray(QSystemTrayIcon):
         details = "\n".join(debug_info)
         print(f"Tesseract diagnostics:\n{details}")
     
-    def _save_screenshot(self, png_bytes):
-        try:
-            if not png_bytes:
-                return None
-            pics = Path.home() / "Pictures" / "Tutor"
-            pics.mkdir(parents=True, exist_ok=True)
-            now = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-            filename = f"screenshot_{now}.png"
-            path = pics / filename
-            path.write_bytes(png_bytes)
-            return str(path)
-        except Exception as e:
-            print(f"Screenshot: Error saving screenshot: {e}")
-            return None
-
     def setup_icon(self):
         print("Setting up icon")
         try:
@@ -633,15 +618,10 @@ class TutorTray(QSystemTrayIcon):
             with mss.mss() as sct:
                 img = sct.grab(sct.monitors[0])
                 png_bytes = mss.tools.to_png(img.rgb, img.size)
-            print("Screenshot: Capture complete")
             if not png_bytes:
                 print("Screenshot: No screenshot captured")
             else:
-                screenshot_path = self._save_screenshot(png_bytes)
-                if screenshot_path:
-                    print(f"Screenshot: Saved to {screenshot_path}")
-                else:
-                    print("Screenshot: Captured but could not be saved")
+                print("Screenshot: Captured")
         except Exception as e:
             self.show_notification.emit("Tutor", "", "Error capturing screenshot.")
             print(f"Screenshot: Error occurred: {e}")
