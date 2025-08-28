@@ -19,7 +19,7 @@ elif os.path.isdir("/opt/homebrew/share/tessdata"):
     datas += [("/opt/homebrew/share/tessdata", "tessdata")]
 
 a = Analysis(
-    ['tray.py'],
+    ['tutor.py'],
     pathex=[],
     binaries=binaries,
     datas=datas,
