@@ -1,0 +1,13 @@
+venv
+venv/
+.venv/
+
+.DS_Store
+
+build/
+build
+dist
+dist/
+
+supabase
+supabase/
