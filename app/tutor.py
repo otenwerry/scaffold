@@ -87,8 +87,7 @@ class OTPDialog(QDialog):
         # OTP input stage
         self.otp_widget = QWidget()
         otp_layout = QVBoxLayout()
-        self.otp_label = QLabel("Enter the 6-digit code sent to your email:")
-        otp_layout.addWidget(self.otp_label)
+        otp_layout.addWidget(QLabel("Enter the 6-digit code sent to your email:"))
         self.otp_input = QLineEdit()
         self.otp_input.setPlaceholderText("123456")
         self.otp_input.setMaxLength(6)
@@ -105,7 +104,7 @@ class OTPDialog(QDialog):
         otp_layout.addLayout(otp_buttons_layout)
         
         self.otp_widget.setLayout(otp_layout)
-        self.otp_widget.hide()
+        #self.otp_widget.hide()
         
         # Status label
         self.status_label = QLabel("")
