@@ -95,7 +95,7 @@ class OTPDialog(QDialog):
         otp_layout.addWidget(self.otp_input)
         
         # Buttons for OTP stage
-        otp_buttons_layout = QHBoxLayout()
+        otp_buttons_layout = QVBoxLayout()
         self.verify_btn = QPushButton("Verify")
         self.verify_btn.clicked.connect(self.verify_otp)
         self.resend_btn = QPushButton("Resend Code")

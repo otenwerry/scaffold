@@ -12,3 +12,4 @@ pyobjc-framework-Cocoa
 pyobjc-framework-Vision
 pyinstaller
 supabase
+keyring
