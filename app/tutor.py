@@ -35,17 +35,22 @@ from collections import deque
 from pathlib import Path
 from datetime import datetime
 from Foundation import NSURL
-from Vision import (
+'''from Vision import (
     VNImageRequestHandler,
     VNRecognizeTextRequest,
     VNRequestTextRecognitionLevelAccurate,
-)
+)'''
+from supabase import create_client, Client
+import json
+import keyring
 
 SR = 16000
 FRAME_MS = 20 #20ms frames
 BLOCKSIZE = int(SR * FRAME_MS / 1000) #20ms blocks
 RING_SECONDS = 60 #60 seconds of audio to buffer
 SYSTEM_PROMPT = ""
+SUPABASE_URL = "https://giohlugbdruxxlgzdtlj.supabase.co"
+SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdpb2hsdWdiZHJ1eHhsZ3pkdGxqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY0MTY4MzUsImV4cCI6MjA3MTk5MjgzNX0.wJVWrwyo3RLPyrM4D0867GhjenY1Z-lwaZFN4GUQloM"
 
 def asset_path(name: str) -> str:
     if getattr(sys, 'frozen', False):
@@ -58,6 +63,214 @@ def asset_path(name: str) -> str:
     else:
         base = os.path.dirname(os.path.abspath(__file__))
     return os.path.join(base, name)
+
+class OTPDialog(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Tutor Sign In")
+        self.setFixedSize(400, 200)
+        
+        self.layout = QVBoxLayout()
+        
+        # Email input stage
+        self.email_widget = QWidget()
+        email_layout = QVBoxLayout()
+        email_layout.addWidget(QLabel("Enter your email to sign in:"))
+        self.email_input = QLineEdit()
+        self.email_input.setPlaceholderText("your@email.com")
+        email_layout.addWidget(self.email_input)
+        self.send_code_btn = QPushButton("Send Code")
+        self.send_code_btn.clicked.connect(self.send_otp)
+        email_layout.addWidget(self.send_code_btn)
+        self.email_widget.setLayout(email_layout)
+        
+        # OTP input stage
+        self.otp_widget = QWidget()
+        otp_layout = QVBoxLayout()
+        self.otp_label = QLabel("Enter the 6-digit code sent to your email:")
+        otp_layout.addWidget(self.otp_label)
+        self.otp_input = QLineEdit()
+        self.otp_input.setPlaceholderText("123456")
+        self.otp_input.setMaxLength(6)
+        otp_layout.addWidget(self.otp_input)
+        
+        # Buttons for OTP stage
+        otp_buttons_layout = QHBoxLayout()
+        self.verify_btn = QPushButton("Verify")
+        self.verify_btn.clicked.connect(self.verify_otp)
+        self.resend_btn = QPushButton("Resend Code")
+        self.resend_btn.clicked.connect(self.send_otp)
+        otp_buttons_layout.addWidget(self.verify_btn)
+        otp_buttons_layout.addWidget(self.resend_btn)
+        otp_layout.addLayout(otp_buttons_layout)
+        
+        self.otp_widget.setLayout(otp_layout)
+        self.otp_widget.hide()
+        
+        # Status label
+        self.status_label = QLabel("")
+        self.status_label.setWordWrap(True)
+        
+        # Add widgets to main layout
+        self.layout.addWidget(self.email_widget)
+        self.layout.addWidget(self.otp_widget)
+        self.layout.addWidget(self.status_label)
+        
+        # Cancel button
+        self.cancel_btn = QPushButton("Cancel")
+        self.cancel_btn.clicked.connect(self.reject)
+        self.layout.addWidget(self.cancel_btn)
+        
+        self.setLayout(self.layout)
+        
+        self.email = None
+        self.supabase = None
+    
+    def set_supabase_client(self, client):
+        """Set the Supabase client"""
+        self.supabase = client #why isn't this parameterized
+    
+    def send_otp(self):
+        """Send OTP to the provided email"""
+        email = self.email_input.text().strip()
+        if not email:
+            self.status_label.setText("Please enter an email address")
+            return
+        
+        self.email = email
+        self.status_label.setText("Sending code...")
+        self.send_code_btn.setEnabled(False)
+        
+        try:
+            # Use Supabase Auth to send OTP
+            response = self.supabase.auth.sign_in_with_otp({
+                "email": email,
+                "options": {
+                    "should_create_user": True  # Create user if doesn't exist
+                }
+            })
+            
+            self.status_label.setText(f"Code sent to {email}")
+            self.email_widget.hide()
+            self.otp_widget.show()
+            self.otp_input.setFocus()
+            
+        except Exception as e:
+            self.status_label.setText(f"Error: {str(e)}")
+            self.send_code_btn.setEnabled(True)
+    
+    def verify_otp(self):
+        """Verify the OTP code"""
+        otp = self.otp_input.text().strip()
+        if not otp or len(otp) != 6:
+            self.status_label.setText("Please enter a 6-digit code")
+            return
+        
+        self.status_label.setText("Verifying...")
+        self.verify_btn.setEnabled(False)
+        
+        try:
+            # Verify OTP with Supabase
+            response = self.supabase.auth.verify_otp({
+                "email": self.email,
+                "token": otp,
+                "type": "email"
+            })
+            
+            if response.user:
+                self.status_label.setText("Success! Signed in.")
+                self.accept()
+            else:
+                self.status_label.setText("Invalid code. Please try again.")
+                self.verify_btn.setEnabled(True)
+                
+        except Exception as e:
+            self.status_label.setText(f"Error: {str(e)}")
+            self.verify_btn.setEnabled(True)
+
+class AuthManager:
+    def __init__(self):
+        self.supabase: Client = None
+        self.user = None
+        self.session = None
+        self.service_name = "TutorApp"
+        self.init_supabase()
+    
+    def init_supabase(self):
+        """Initialize Supabase client"""
+        try:
+            self.supabase = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
+            # Try to restore session from secure storage
+            self.restore_session()
+        except Exception as e:
+            print(f"Error initializing Supabase: {e}")
+    
+    def save_session(self):
+        """Save session to secure storage"""
+        if self.session:
+            try:
+                # Use keyring for secure storage
+                session_data = json.dumps({
+                    'access_token': self.session.access_token,
+                    'refresh_token': self.session.refresh_token,
+                    'expires_at': self.session.expires_at,
+                    'user_id': self.user.id if self.user else None
+                })
+                keyring.set_password(self.service_name, "session", session_data)
+            except Exception as e:
+                print(f"Error saving session: {e}")
+    
+    def restore_session(self):
+        """Restore session from secure storage"""
+        try:
+            session_data = keyring.get_password(self.service_name, "session")
+            if session_data:
+                data = json.loads(session_data)
+                # Set the session in Supabase client
+                response = self.supabase.auth.set_session(
+                    data['access_token'],
+                    data['refresh_token']
+                )
+                if response.user:
+                    self.user = response.user
+                    self.session = response.session
+                    print(f"Session restored for user: {self.user.email}")
+                    return True
+        except Exception as e:
+            print(f"Error restoring session: {e}")
+        return False
+    
+    def clear_session(self):
+        """Clear stored session"""
+        try:
+            keyring.delete_password(self.service_name, "session")
+        except:
+            pass
+    
+    def is_authenticated(self):
+        """Check if user is authenticated"""
+        return self.user is not None and self.session is not None
+    
+    def sign_out(self):
+        """Sign out the current user"""
+        try:
+            self.supabase.auth.sign_out()
+            self.user = None
+            self.session = None
+            self.clear_session()
+        except Exception as e:
+            print(f"Error signing out: {e}")
+    
+    async def increment_usage(self):
+        """Increment the monthly usage counter for the current user"""
+        if self.user:
+            try:
+                # Call the database function to increment usage
+                response = self.supabase.rpc('increment_usage', {'p_user_id': self.user.id}).execute()
+                print(f"Usage incremented for user {self.user.id}")
+            except Exception as e:
+                print(f"Error incrementing usage: {e}")        
+        
 
 class LoginDialog(QDialog):
     def __init__(self, parent=None):
@@ -92,9 +305,13 @@ class TutorTray(QSystemTrayIcon):
     show_error = Signal(str)
     pipeline_complete = Signal(dict)
     audio_started = Signal()
+    auth_required = Signal()
     def __init__(self, app):
         super().__init__()
         self.app = app
+        self.auth_manager = AuthManager()
+        if not self.auth_manager.is_authenticated():
+            QTimer.singleShot(500, self.show_auth_dialog)
         self.setup_icon()
         self.setup_api_client()
         self.setup_tesseract()
@@ -155,7 +372,43 @@ class TutorTray(QSystemTrayIcon):
             print("Tray: System tray available")
         
         # Show initial notification
-        self.showMessage("Tutor", "App is running. Press F9 to ask a question.")
+        if self.auth_manager.is_authenticated():
+            print(f"App is running. Press F9 to ask a question. Signed in as {self.auth_manager.user.email}")
+        else:
+            print("App is running. Please sign in to continue.")
+
+    def show_auth_dialog(self):
+        dialog = OTPDialog()
+        dialog.set_supabase_client(self.auth_manager.supabase)
+        
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            # Get the authenticated user
+            response = self.auth_manager.supabase.auth.get_user()
+            if response:
+                self.auth_manager.user = response.user
+                self.auth_manager.session = self.auth_manager.supabase.auth.get_session()
+                self.auth_manager.save_session()
+                
+                self.showMessage("Tutor", f"Signed in as {self.auth_manager.user.email}")
+                self.update_menu_auth_state()
+            else:
+                self.showMessage("Tutor", "Authentication failed")
+        else:
+            if not self.auth_manager.is_authenticated():
+                self.showMessage("Tutor", "Authentication required to use Tutor")
+  
+    def update_menu_auth_state(self):
+        """Update menu items based on auth state"""
+        if self.auth_manager.is_authenticated():
+            self.login_action.setText(f"Signed in as {self.auth_manager.user.email}")
+            self.login_action.setEnabled(False)
+            self.signout_action.setVisible(True)
+            self.ask_action.setEnabled(True)
+        else:
+            self.login_action.setText("Sign In...")
+            self.login_action.setEnabled(True)
+            self.signout_action.setVisible(False)
+            self.ask_action.setEnabled(False)
     
     def setup_tesseract(self):
         debug_info = []
@@ -316,9 +569,15 @@ class TutorTray(QSystemTrayIcon):
         menu.addAction(self.settings_action)
         
         # Login action (for future use)
-        self.login_action = QAction("Login...")
-        self.login_action.triggered.connect(self.show_login)
+        self.login_action = QAction("Log in")
+        self.login_action.triggered.connect(self.show_auth_dialog)
         menu.addAction(self.login_action)
+
+        # Sign out action (hidden)
+        self.signout_action = QAction("Sign out")
+        self.signout_action.triggered.connect(self.sign_out)
+        self.signout_action.setVisible(False)
+        menu.addAction(self.signout_action)
         
         menu.addSeparator()
         
@@ -328,6 +587,11 @@ class TutorTray(QSystemTrayIcon):
         menu.addAction(self.quit_action)
         
         self.setContextMenu(menu)
+    
+    def sign_out(self):
+        self.auth_manager.sign_out()
+        self.update_menu_auth_state()
+        self.showMessage("Tutor", "Signed out")
         
     def show_login(self):
         dialog = LoginDialog()
@@ -376,6 +640,9 @@ class TutorTray(QSystemTrayIcon):
 
     def on_ask(self):
         print("UI: Ask button clicked")
+        if not self.auth_manager.is_authenticated():
+            self.show_auth_dialog()
+            return
         if not self.is_recording:
             self.ask_action.setText("Stop Asking (F9)")
             print("UI: Entering asking mode")
@@ -442,7 +709,7 @@ class TutorTray(QSystemTrayIcon):
             print(f"OCR: Error occurred: {e}")
             return f"OCR: Error occurred: {e}"
 
-    async def _apple_ocr(self, screenshot):
+    '''async def _apple_ocr(self, screenshot):
         with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp:
             tmp.write(screenshot)
             tmp_path = tmp.name
@@ -469,7 +736,7 @@ class TutorTray(QSystemTrayIcon):
             try:
                 os.unlink(tmp_path)
             except Exception:
-                pass
+                pass'''
 
 
         
@@ -653,6 +920,7 @@ class TutorTray(QSystemTrayIcon):
     async def _async_pipeline(self, screenshot, recording):
         print("Pipeline: Started")
         try:
+            await self.auth_manager.increment_usage()
             stt_task = asyncio.create_task(self._stt(recording))
             ocr_task = asyncio.create_task(self._ocr(screenshot))
             transcript, ocr_text = await asyncio.gather(stt_task, ocr_task)

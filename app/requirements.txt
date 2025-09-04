@@ -11,3 +11,4 @@ pyobjc-core
 pyobjc-framework-Cocoa
 pyobjc-framework-Vision
 pyinstaller
+supabase
