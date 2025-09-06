@@ -283,32 +283,6 @@ class AuthManager:
             except Exception as e:
                 print(f"Error incrementing usage: {e}")        
         
-
-class LoginDialog(QDialog):
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setWindowTitle("Tutor Login")
-        self.setFixedSize(350, 200)
-
-        layout = QVBoxLayout()
-        layout.addWidget(QLabel("Email:"))
-        self.email_input = QLineEdit()
-        self.email_input.setPlaceholderText("Enter your email")
-        layout.addWidget(self.email_input)
-        layout.addWidget(QLabel("Password:"))
-        self.password_input = QLineEdit()
-        self.password_input.setPlaceholderText("Enter your password")
-        self.password_input.setEchoMode(QLineEdit.EchoMode.Password)
-        layout.addWidget(self.password_input)
-
-        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
-        buttons.accepted.connect(self.accept)
-        buttons.rejected.connect(self.reject)
-        layout.addWidget(buttons)
-
-        self.setLayout(layout)
-
-
 #class TutorTray(rumps.App):
 class TutorTray(QSystemTrayIcon):
     show_notification = Signal(str, str, str)
@@ -599,17 +573,6 @@ class TutorTray(QSystemTrayIcon):
         self.auth_manager.sign_out()
         self.update_menu_auth_state()
         self.showMessage("Tutor", "Signed out")
-        
-    def show_login(self):
-        dialog = LoginDialog()
-        if dialog.exec() == QDialog.DialogCode.Accepted:
-            email = dialog.email_input.text()
-            password = dialog.password_input.text()
-            if email and password:
-                # Here you'd handle actual authentication
-                self.showMessage("Tutor", f"Logged in as {email}")
-            else:
-                self.showMessage("Tutor", "Using local API key")
     
     def show_settings(self):
         """Placeholder for settings window"""
@@ -1049,7 +1012,6 @@ class TutorTray(QSystemTrayIcon):
         self.update_status.emit("Ready")
         self.processing = False
         print("Pipeline: Completed successfully")
-
 
 def main():
     global SYSTEM_PROMPT
