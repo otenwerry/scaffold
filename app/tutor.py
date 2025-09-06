@@ -17,7 +17,7 @@ from PySide6.QtWidgets import (QApplication, QSystemTrayIcon, QMenu,
                               QDialog, QDialogButtonBox, QTextEdit)
 from PySide6.QtCore import QThread, Signal, Slot, QTimer
 from PySide6.QtGui import QIcon, QAction
-from PySide6.QtGui import QPixmap, QPainter, QBrush
+from PySide6.QtGui import QPixmap, QPainter, QBrush, QFontDatabase
 from PySide6.QtCore import Qt
 
 import sounddevice as sd
