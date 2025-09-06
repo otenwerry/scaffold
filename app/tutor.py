@@ -34,6 +34,8 @@ import pytesseract
 from collections import deque
 from pathlib import Path
 from datetime import datetime
+from ui.settings import SettingsDialog
+
 from Foundation import NSURL
 '''from Vision import (
     VNImageRequestHandler,
@@ -366,6 +368,7 @@ class TutorTray(QSystemTrayIcon):
         self.animation_timer.setInterval(250)
         self.animation_timer.timeout.connect(self._tick_thinking_icon)
         self.audio_started.connect(self.stop_thinking_animation)
+        self._settings_dialog = None 
 
         # Set up global hotkey 
         self._ghk = pk.GlobalHotKeys({
@@ -612,8 +615,18 @@ class TutorTray(QSystemTrayIcon):
                 self.showMessage("Tutor", "Using local API key")
     
     def show_settings(self):
+        settings = self._settings_dialog
+        if settings is None:
+            settings = SettingsDialog(parent=None)
+            settings.setAttribute(Qt.WA_DeleteOnClose, False)
+            self._settings_dialog = settings   
+
+        settings.show()
+        settings.raise_()
+        settings.activateWindow()
+
         """Placeholder for settings window"""
-        QMessageBox.information(None, "Settings", "Settings window coming soon!")
+        """QMessageBox.information(None, "Settings", "Settings window coming soon!")"""
     
     def quit_app(self):
         """Clean shutdown"""
