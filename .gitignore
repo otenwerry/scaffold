@@ -11,3 +11,5 @@ dist/
 
 supabase
 supabase/
+
+__pycache__/
