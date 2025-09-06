@@ -579,11 +579,6 @@ class TutorTray(QSystemTrayIcon):
         self.settings_action = QAction("Settings...")
         self.settings_action.triggered.connect(self.show_settings)
         menu.addAction(self.settings_action)
-        
-        # Login action (for future use)
-        self.login_action = QAction("Log in")
-        self.login_action.triggered.connect(self.show_auth_dialog)
-        menu.addAction(self.login_action)
 
         # Sign out action (hidden)
         self.signout_action = QAction("Sign out")
