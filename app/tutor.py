@@ -68,7 +68,8 @@ class OTPDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Tutor Sign In")
-        self.setFixedSize(400, 200)
+        self.setFixedWidth(400)
+        self.setMinimumHeight(200)
         
         self.layout = QVBoxLayout()
         
@@ -78,9 +79,12 @@ class OTPDialog(QDialog):
         email_layout.addWidget(QLabel("Enter your email to sign in:"))
         self.email_input = QLineEdit()
         self.email_input.setPlaceholderText("your@email.com")
+        self.email_input.returnPressed.connect(self.send_otp)
         email_layout.addWidget(self.email_input)
         self.send_code_btn = QPushButton("Send Code")
         self.send_code_btn.clicked.connect(self.send_otp)
+        self.send_code_btn.setDefault(True)
+        self.send_code_btn.setAutoDefault(True)
         email_layout.addWidget(self.send_code_btn)
         self.email_widget.setLayout(email_layout)
         
@@ -91,20 +95,26 @@ class OTPDialog(QDialog):
         self.otp_input = QLineEdit()
         self.otp_input.setPlaceholderText("123456")
         self.otp_input.setMaxLength(6)
+        # Let Enter in the OTP field trigger Verify
+        self.otp_input.returnPressed.connect(self.verify_otp)
         otp_layout.addWidget(self.otp_input)
-        
+
         # Buttons for OTP stage
         otp_buttons_layout = QVBoxLayout()
         self.verify_btn = QPushButton("Verify")
         self.verify_btn.clicked.connect(self.verify_otp)
+        # This will become the default once we switch stages
+        self.verify_btn.setAutoDefault(True)
+
         self.resend_btn = QPushButton("Resend Code")
         self.resend_btn.clicked.connect(self.send_otp)
         otp_buttons_layout.addWidget(self.verify_btn)
         otp_buttons_layout.addWidget(self.resend_btn)
         otp_layout.addLayout(otp_buttons_layout)
-        
+
         self.otp_widget.setLayout(otp_layout)
-        #self.otp_widget.hide()
+        # Hide OTP step until code is sent
+        self.otp_widget.hide()
         
         # Status label
         self.status_label = QLabel("")
@@ -153,6 +163,9 @@ class OTPDialog(QDialog):
             self.email_widget.hide()
             self.otp_widget.show()
             self.otp_input.setFocus()
+            self.adjustSize()
+            self.verify_btn.setDefault(True)
+            self.send_code_btn.setDefault(False)
             
         except Exception as e:
             self.status_label.setText(f"Error: {str(e)}")
