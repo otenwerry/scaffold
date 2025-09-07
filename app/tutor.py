@@ -994,6 +994,7 @@ class TutorTray(QSystemTrayIcon):
 
             #finalize usage for subscribers
             if mode == "metered":
+                input_chars = len(combined_prompt)
                 finalize = await self.auth_manager.increment_usage(
                     mins_recording=mins_recording,
                     input_chars=input_chars,
