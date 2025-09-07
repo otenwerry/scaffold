@@ -275,15 +275,35 @@ class AuthManager:
         except Exception as e:
             print(f"Error signing out: {e}")
     
-    async def increment_usage(self):
+    async def increment_usage(
+        self, 
+        *, 
+        mins_recording: float | None = None, 
+        input_chars: int | None = None, 
+        output_chars: int | None = None, 
+        output_audio_secs: float | None = None
+    ) -> dict | None:
         """Increment the monthly usage counter for the current user"""
-        if self.user:
-            try:
-                # Call the database function to increment usage
-                response = self.supabase.rpc('increment_usage', {'p_user_id': self.user.id}).execute()
-                print(f"Usage incremented for user {self.user.id}")
-            except Exception as e:
-                print(f"Error incrementing usage: {e}")        
+        if not self.user:
+            raise RuntimeError("User not authenticated")
+        params = {}
+        if mins_recording is not None:
+            params['p_minutes_recording'] = mins_recording
+        if input_chars is not None:
+            params['p_input_chars'] = input_chars
+        if output_chars is not None:
+            params['p_output_chars'] = output_chars
+        if output_audio_secs is not None:
+            params['p_output_audio_seconds'] = output_audio_secs
+        try:
+            response = self.supabase.rpc('rpc_track_usage', params).execute()
+            row = response.data[0]
+            print(f"Usage incremented for user {self.user.id}")
+            return row
+        except Exception as e:
+            print(f"Error incrementing usage: {e}")
+            return None
+
         
 #class TutorTray(rumps.App):
 class TutorTray(QSystemTrayIcon):
@@ -903,7 +923,24 @@ class TutorTray(QSystemTrayIcon):
     async def _async_pipeline(self, screenshot, recording):
         print("Pipeline: Started")
         try:
-            await self.auth_manager.increment_usage()
+            preflight = await self.auth_manager.increment_usage()
+            if not preflight or not preflight.get('allowed', False):
+                msg = "Quota exceeded, please subscribe at URL"
+                print(f"{msg}")
+                return {"error": msg}
+            mode = preflight.get('mode')
+            rec_bytes = recording.getvalue()
+            try:
+                import wave as _wave
+                with _wave.open(io.BytesIO(rec_bytes), "rb") as wf:
+                    frames = wf.getnframes()
+                    rate = wf.getframerate() or SR
+                    seconds = frames / float(rate) if rate else 0.0
+                mins_recording = seconds / 60.0
+            except Exception as _e:
+                print(f"Pipeline: Could not read WAV duration: {_e}")
+                mins_recording = None
+            recording.seek(0)
             stt_task = asyncio.create_task(self._stt(recording))
             ocr_task = asyncio.create_task(self._ocr(screenshot))
             transcript, ocr_text = await asyncio.gather(stt_task, ocr_task)
@@ -950,10 +987,24 @@ class TutorTray(QSystemTrayIcon):
             #flush remainder
             if sentence_buf.strip():
                 await q.put(sentence_buf)
-            await q.put(None)
+            await q.put(None) 
             await spk_task
             print("Pipeline: LLM streaming completed")
             print("Pipeline: TTS completed")
+
+            #finalize usage for subscribers
+            if mode == "metered":
+                finalize = await self.auth_manager.increment_usage(
+                    mins_recording=mins_recording,
+                    input_chars=input_chars,
+                    output_chars=len(response),
+                    output_audio_secs=None, 
+                )
+                if not finalize or not finalize.get("allowed", False):
+                    # If this happens, we didn't update usage due to cap; you've already done the work,
+                    # but at least we surface it.
+                    print("Pipeline: Metered finalize denied (cap reached mid-request).")
+
             
             #add the response to the chat history
             try:
