@@ -1,5 +1,7 @@
+/* global defaults */
 * { font-family: -apple-system, "SF Pro Text", "Segoe UI", Roboto, Arial; font-size: 13px; }
 QWidget { background: #0e0f12; color: #eaecef; }
-QFrame#LoginCard { background: #16181d; border: 1px solid rgba(255,255,255,0.07); border-radius: 14px; }
-QLabel#Title { font-size: 17px; font-weight: 600; margin-bottom: 2px; }
-QLabel#Subtitle { color: #aab2c0; margin-bottom: 12px; }
+QToolTip { background: #1b1e25; color: #eaecef; border: 1px solid #2a2f3a; padding: 6px 8px; border-radius: 8px; }
+
+/* generic form spacing */
+QLabel { margin-bottom: 4px; }

@@ -1,0 +1,13 @@
+QPushButton {
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.14);
+  background: #1a1d24;
+}
+QPushButton:hover   { background: #1d212a; }
+QPushButton:pressed { background: #181b22; }
+QPushButton:disabled { opacity: .55; }
+
+/* variants via dynamic property */
+QPushButton[variant="primary"] { background: #2a66ff; border-color: #2a66ff; color: white; }
+QPushButton[variant="primary"]:hover { background: #275cf0; }
