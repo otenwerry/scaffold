@@ -279,8 +279,8 @@ class AuthManager:
         self, 
         *, 
         mins_recording: float | None = None, 
-        input_chars: int | None = None, 
-        output_chars: int | None = None, 
+        input_words: int | None = None, 
+        output_words: int | None = None, 
         output_audio_secs: float | None = None
     ) -> dict | None:
         """Increment the monthly usage counter for the current user"""
@@ -289,10 +289,10 @@ class AuthManager:
         params = {}
         if mins_recording is not None:
             params['p_minutes_recording'] = mins_recording
-        if input_chars is not None:
-            params['p_input_chars'] = input_chars
-        if output_chars is not None:
-            params['p_output_chars'] = output_chars
+        if input_words is not None:
+            params['p_input_words'] = input_words
+        if output_words is not None:
+            params['p_output_words'] = output_words
         if output_audio_secs is not None:
             params['p_output_audio_seconds'] = output_audio_secs
         try:
@@ -994,13 +994,15 @@ class TutorTray(QSystemTrayIcon):
 
             #finalize usage for subscribers
             if mode == "metered":
-                input_chars = len(combined_prompt)
+                input_words = len(combined_prompt.split())
+                output_words = len(response.split())
                 finalize = await self.auth_manager.increment_usage(
                     mins_recording=mins_recording,
-                    input_chars=input_chars,
-                    output_chars=len(response),
+                    input_words=input_words,
+                    output_words=output_words,
                     output_audio_secs=None, 
                 )
+                print(f"{mins_recording} mins recording, {input_words} input words, {output_words} output words")
                 if not finalize or not finalize.get("allowed", False):
                     # If this happens, we didn't update usage due to cap; you've already done the work,
                     # but at least we surface it.
