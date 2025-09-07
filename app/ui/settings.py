@@ -40,6 +40,9 @@ class SettingsDialog(QDialog):
         tabs.addTab(api, "API")
 
         buttons = QDialogButtonBox(QDialogButtonBox.Close)
+        close_btn = buttons.button(QDialogButtonBox.Close)
+        if close_btn: close_btn.setProperty("variant", "primary")
+
         buttons.rejected.connect(self.close)
 
         lay = QVBoxLayout(self)

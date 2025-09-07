@@ -35,6 +35,7 @@ from collections import deque
 from pathlib import Path
 from datetime import datetime
 from ui.settings import SettingsDialog
+from style_manager import load_qss
 
 from Foundation import NSURL
 '''from Vision import (
