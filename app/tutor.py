@@ -279,12 +279,11 @@ class AuthManager:
     async def increment_usage(
         self, 
         *, 
-        mins_recording: Optional[float] = None, 
-        input_words: Optional[int] = None, 
-        output_words: Optional[int] = None, 
-        output_audio_secs: Optional[float] = None
-    ) -> Optional[dict]:
-        """Increment the monthly usage counter for the current user"""
+        mins_recording: float | None = None, 
+        input_words: int | None = None, 
+        output_words: int | None = None, 
+        output_audio_secs: float | None = None
+    ) -> dict | None:
         if not self.user:
             raise RuntimeError("User not authenticated")
         params = {}
@@ -994,7 +993,7 @@ class TutorTray(QSystemTrayIcon):
             print("Pipeline: TTS completed")
 
             #finalize usage for subscribers
-            if mode == "metered":
+            if preflight.get('allowed'):
                 input_words = len(combined_prompt.split())
                 output_words = len(response.split())
                 finalize = await self.auth_manager.increment_usage(
