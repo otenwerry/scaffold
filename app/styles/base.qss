@@ -1,21 +1,26 @@
-* { font-family: -apple-system, "SF Pro Text", "Segoe UI", Roboto, Arial; font-size: 13px; }
-QWidget { background: #0e0f12; color: #eaecef; }
+* { font-family: "Helvetica Neue", "Segoe UI", Roboto, Arial; font-size: 13px; }
+
 QFrame#LoginCard { background: #16181d; border: 1px solid rgba(255,255,255,0.07); border-radius: 14px; }
 QLabel#Title { font-size: 17px; font-weight: 600; margin-bottom: 2px; }
 QLabel#Subtitle { color: #aab2c0; margin-bottom: 12px; }
 
-QTabWidget::pane{
+QListWidget#Sidebar {
+    padding-left: 0px;
+    background: transparent;
     border: none;
-    background:none;
+    border-right: 1px solid black;
 }
 
-QTabBar::tab { 
-    background: transparent;  
-    border: none;
-    padding: 6px 10px;
-    color: #eaecef;
+QListWidget#Sidebar::item {
+    padding: 8px;
 }
 
-QTabBar::tab:selected {
-    border-bottom: 2px solid #eaecef;
+QListWidget#Sidebar::item:selected {
+    background: white;
+    border-radius: 8px;
+    color: black;
+}
+
+QVBoxLayout#Root{
+    background: #eaecef;
 }
