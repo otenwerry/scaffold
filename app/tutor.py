@@ -36,6 +36,7 @@ from pathlib import Path
 from datetime import datetime
 from ui.settings import SettingsDialog
 from typing import Optional
+from websockets.asyncio.client import connect as ws_connect
 
 from Foundation import NSURL
 '''from Vision import (
@@ -771,6 +772,18 @@ class TutorTray(QSystemTrayIcon):
         )
         print("TTS: Synthesis finished")
         return response.read()
+    
+    async def _realtime_session(self, *, ocr_text: str | None = None):
+        print("Realtime session: Starting")
+        model = "gpt-4o-realtime-preview"
+        url = f"wss://api.openai.com/v1/realtime?model={model}"
+        headers = [
+            ("Authorization", f"Bearer {self.openai_client.api_key}"),
+            ("OpenAI-Beta", "realtime=v1")
+        ]
+        self.processing = True
+        async with ws_connect(url, headers=headers, open_timeout=15) as ws:
+
     
     def play_audio(self, audio_bytes, wait=False, emit_start=True):
         print("Audio: Preparing playback")
