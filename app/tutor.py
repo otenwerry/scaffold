@@ -35,6 +35,7 @@ from collections import deque
 from pathlib import Path
 from datetime import datetime
 from ui.settings import SettingsDialog
+from typing import Optional
 
 from Foundation import NSURL
 '''from Vision import (
@@ -278,11 +279,11 @@ class AuthManager:
     async def increment_usage(
         self, 
         *, 
-        mins_recording: float | None = None, 
-        input_words: int | None = None, 
-        output_words: int | None = None, 
-        output_audio_secs: float | None = None
-    ) -> dict | None:
+        mins_recording: Optional[float] = None, 
+        input_words: Optional[int] = None, 
+        output_words: Optional[int] = None, 
+        output_audio_secs: Optional[float] = None
+    ) -> Optional[dict]:
         """Increment the monthly usage counter for the current user"""
         if not self.user:
             raise RuntimeError("User not authenticated")
