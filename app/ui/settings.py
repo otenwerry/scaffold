@@ -1,47 +1,80 @@
 # ui/settings.py
 from PySide6.QtWidgets import (
-    QDialog, QVBoxLayout, QTabWidget, QWidget, QFormLayout, 
-    QLineEdit, QCheckBox, QComboBox, QDialogButtonBox
+    QDialog, QHBoxLayout, QListWidget, QStackedWidget,
+    QWidget, QFormLayout, QLineEdit, QCheckBox, QComboBox, QDialogButtonBox,
+    QVBoxLayout, QSizePolicy
 )
 from PySide6.QtCore import Qt
 
 class SettingsDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setObjectName("SettingsDialog")
-        self.setWindowTitle("Settings")
-        self.setModal(False)               
-        self.setAttribute(Qt.WA_DeleteOnClose, False)
-        self.setMinimumSize(520, 380)
+        self.setMinimumSize(600, 400)
 
-        tabs = QTabWidget(self)
-        tabs.setObjectName("SettingsTabs")
+        # outer layer
+        root = QVBoxLayout(self)
+        root.setObjectName("Root")
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(0)
 
+        content = QHBoxLayout()
+        content.setContentsMargins(12, 12, 12, 0)
+        content.setSpacing(12)
+
+        # sidebar list
+        sidebar = QListWidget()
+        sidebar.addItems(["Home", "Settings", "Configuration", "Profile"])
+        sidebar.setFixedWidth(200)
+        sidebar.setObjectName("Sidebar")
+
+        pages = QStackedWidget()
+        pages.setObjectName("Pages")
+        pages.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+
+        home = QWidget()
+        home.setObjectName("Home")
+        home_form = QFormLayout(home)
+        home_form.setContentsMargins(0, 0, 0, 0)
+        home_form.addRow("Welcome to Scaffold!", QLineEdit("test")) 
+        pages.addWidget(home)
+
+        # settings page
         general = QWidget()
         gform = QFormLayout(general)
-        self.launch_at_login = QCheckBox("Launch at login")
-        self.hotkey = QLineEdit("F9")
-        gform.addRow(self.launch_at_login)
-        gform.addRow("Global hotkey", self.hotkey)
-        tabs.addTab(general, "General")
+        gform.addRow(QCheckBox("Launch at login"))
+        gform.setContentsMargins(0, 0, 0, 0)
+        gform.addRow("Global hotkey", QLineEdit("F9"))
+        pages.addWidget(general)
 
-        audio = QWidget()
-        aform = QFormLayout(audio)
-        self.input_dev = QComboBox(); self.input_dev.addItems(["Default mic"])
-        self.output_dev = QComboBox(); self.output_dev.addItems(["Default speakers"])
-        aform.addRow("Input device", self.input_dev)
-        aform.addRow("Output device", self.output_dev)
-        tabs.addTab(audio, "Audio")
+        # configuration page
+        config = QWidget()
+        cform = QFormLayout(config)
+        cform.setContentsMargins(0, 0, 0, 0)
+        cform.addRow("Input device", QComboBox())
+        cform.addRow("Output device", QComboBox())
+        pages.addWidget(config)
 
-        """api = QWidget()
-        a2 = QFormLayout(api)
-        self.api_key = QLineEdit(); self.api_key.setEchoMode(QLineEdit.Password)
-        a2.addRow("Local API key", self.api_key)
-        tabs.addTab(api, "API")"""
+        # profile page
+        profile = QWidget()
+        pform = QFormLayout(profile)
+        pform.setContentsMargins(0, 0, 0, 0)
+        pform.addRow("Name", QLineEdit())
+        pform.addRow("Email", QLineEdit())
+        pages.addWidget(profile)
 
+        sidebar.currentRowChanged.connect(pages.setCurrentIndex)
+
+        content.addWidget(sidebar)
+        content.addWidget(pages)
+        root.addLayout(content)
+
+        # close button
         buttons = QDialogButtonBox(QDialogButtonBox.Close)
         buttons.rejected.connect(self.close)
-
-        lay = QVBoxLayout(self)
-        lay.addWidget(tabs)
-        lay.addWidget(buttons)
+        buttons.setObjectName("Buttons")
+        
+        btn_row = QHBoxLayout()
+        btn_row.setContentsMargins(12, 12, 12, 12)
+        btn_row.addStretch()           # push buttons to the right
+        btn_row.addWidget(buttons)
+        root.addLayout(btn_row)

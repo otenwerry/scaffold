@@ -277,7 +277,7 @@ class AuthManager:
             print(f"Error signing out: {e}")
     
     async def increment_usage(
-        self, 
+        self,   
         *, 
         mins_recording: float | None = None, 
         input_words: int | None = None, 
@@ -1085,6 +1085,8 @@ def main():
     print("Main: Launching TutorTray app")
     #app = TutorTray()
     app = QApplication(sys.argv)
+    with open("styles/base.qss", "r") as f:
+        app.setStyleSheet(f.read())
     app.setQuitOnLastWindowClosed(False) #keep running in tray
     try:
         with open(asset_path("system_prompt.txt"), "r", encoding="utf-8") as f:
