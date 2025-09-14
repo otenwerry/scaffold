@@ -33,11 +33,11 @@ class SettingsDialog(QDialog):
         aform.addRow("Output device", self.output_dev)
         tabs.addTab(audio, "Audio")
 
-        api = QWidget()
+        """api = QWidget()
         a2 = QFormLayout(api)
         self.api_key = QLineEdit(); self.api_key.setEchoMode(QLineEdit.Password)
         a2.addRow("Local API key", self.api_key)
-        tabs.addTab(api, "API")
+        tabs.addTab(api, "API")"""
 
         buttons = QDialogButtonBox(QDialogButtonBox.Close)
         buttons.rejected.connect(self.close)
