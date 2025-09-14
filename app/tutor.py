@@ -281,8 +281,7 @@ class AuthManager:
         *, 
         mins_recording: float | None = None, 
         input_words: int | None = None, 
-        output_words: int | None = None, 
-        output_audio_secs: float | None = None
+        output_words: int | None = None
     ) -> dict | None:
         if not self.user:
             raise RuntimeError("User not authenticated")
@@ -293,8 +292,6 @@ class AuthManager:
             params['p_input_words'] = input_words
         if output_words is not None:
             params['p_output_words'] = output_words
-        if output_audio_secs is not None:
-            params['p_output_audio_seconds'] = output_audio_secs
         try:
             response = self.supabase.rpc('rpc_track_usage', params).execute()
             row = response.data[0]
@@ -999,8 +996,7 @@ class TutorTray(QSystemTrayIcon):
                 finalize = await self.auth_manager.increment_usage(
                     mins_recording=mins_recording,
                     input_words=input_words,
-                    output_words=output_words,
-                    output_audio_secs=None, 
+                    output_words=output_words
                 )
                 print(f"{mins_recording} mins recording, {input_words} input words, {output_words} output words")
                 if not finalize or not finalize.get("allowed", False):
