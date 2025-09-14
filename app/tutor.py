@@ -405,8 +405,10 @@ class TutorTray(QSystemTrayIcon):
   
     def update_menu_auth_state(self):
         """Update menu items based on auth state"""
-        if self.auth_manager.is_authenticated():
-            self.login_action.setText(f"Signed in as {self.auth_manager.user.email}")
+        authed = self.auth_manager.is_authenticated()
+        if authed:
+            email = self.auth_manager.user.email
+            self.login_action.setText(f"Signed in as {email}")
             self.login_action.setEnabled(False)
             self.signout_action.setVisible(True)
             self.ask_action.setEnabled(True)
@@ -415,6 +417,9 @@ class TutorTray(QSystemTrayIcon):
             self.login_action.setEnabled(True)
             self.signout_action.setVisible(False)
             self.ask_action.setEnabled(False)
+
+        if not hasattr(self, 'login_action'):
+            return
     
     def setup_tesseract(self):
         debug_info = []
