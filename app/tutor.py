@@ -921,11 +921,11 @@ class TutorTray(QSystemTrayIcon):
         print("Pipeline: Started")
         try:
             preflight = await self.auth_manager.increment_usage()
-            if not preflight or not preflight.get('allowed', False):
+            if not preflight or not preflight.get('success', False):
                 msg = "Quota exceeded, please subscribe at URL"
                 print(f"{msg}")
                 return {"error": msg}
-            mode = preflight.get('mode')
+            tier = preflight.get('tier')
             rec_bytes = recording.getvalue()
             try:
                 import wave as _wave
@@ -990,7 +990,7 @@ class TutorTray(QSystemTrayIcon):
             print("Pipeline: TTS completed")
 
             #finalize usage for subscribers
-            if preflight.get('allowed'):
+            if preflight.get('success'):
                 input_words = len(combined_prompt.split())
                 output_words = len(response.split())
                 finalize = await self.auth_manager.increment_usage(
@@ -999,7 +999,7 @@ class TutorTray(QSystemTrayIcon):
                     output_words=output_words
                 )
                 print(f"{mins_recording} mins recording, {input_words} input words, {output_words} output words")
-                if not finalize or not finalize.get("allowed", False):
+                if not finalize or not finalize.get("success", False):
                     # If this happens, we didn't update usage due to cap; you've already done the work,
                     # but at least we surface it.
                     print("Pipeline: Metered finalize denied (cap reached mid-request).")
