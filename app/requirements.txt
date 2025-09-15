@@ -13,3 +13,4 @@ pyobjc-framework-Vision
 pyinstaller
 supabase
 keyring
+websockets
