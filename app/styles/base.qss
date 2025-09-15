@@ -1,14 +1,11 @@
 * { font-family: "Helvetica Neue", "Segoe UI", Roboto, Arial; font-size: 13px; }
 
-QFrame#LoginCard { background: #16181d; border: 1px solid rgba(255,255,255,0.07); border-radius: 14px; }
-QLabel#Title { font-size: 17px; font-weight: 600; margin-bottom: 2px; }
-QLabel#Subtitle { color: #aab2c0; margin-bottom: 12px; }
-
 QListWidget#Sidebar {
     padding-left: 0px;
     background: transparent;
     border: none;
     border-right: 1px solid black;
+    padding-right: 14px;
 }
 
 QListWidget#Sidebar::item {
@@ -16,9 +13,10 @@ QListWidget#Sidebar::item {
 }
 
 QListWidget#Sidebar::item:selected {
-    background: white;
+    background: rgba(255, 255, 255, 0.8);
     border-radius: 8px;
     color: black;
+    transition: background 0.01s;
 }
 
 QVBoxLayout#Root{
