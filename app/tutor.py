@@ -36,6 +36,7 @@ from pathlib import Path
 from datetime import datetime
 from ui.settings import SettingsDialog
 from typing import Optional
+from websockets.asyncio.client import connect as ws_connect
 
 from Foundation import NSURL
 '''from Vision import (
@@ -54,6 +55,7 @@ RING_SECONDS = 60 #60 seconds of audio to buffer
 SYSTEM_PROMPT = ""
 SUPABASE_URL = "https://giohlugbdruxxlgzdtlj.supabase.co"
 SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdpb2hsdWdiZHJ1eHhsZ3pkdGxqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY0MTY4MzUsImV4cCI6MjA3MTk5MjgzNX0.wJVWrwyo3RLPyrM4D0867GhjenY1Z-lwaZFN4GUQloM"
+REALTIME_ONLY = True
 
 def asset_path(name: str) -> str:
     if getattr(sys, 'frozen', False):
@@ -327,6 +329,8 @@ class TutorTray(QSystemTrayIcon):
         self._stream = None # audio stream   
         self.chat_history = deque(maxlen=4) #2 user, 2 assistant
         self.show_notification.connect(self._show_notification, Qt.ConnectionType.QueuedConnection)
+        self.use_realtime = REALTIME_ONLY
+        self._rt_future = None
         #debug state
         self._last_rms = 0.0
         self._frames = 0
@@ -647,13 +651,23 @@ class TutorTray(QSystemTrayIcon):
             self.ask_action.setText("Stop Asking (F9)")
             print("UI: Entering asking mode")
             self._start_recording()
-            self.show_notification.emit("Tutor", "", "Asking…")
+            if getattr(self, 'use_realtime', False):
+                self._first_audio_played = False
+                self.update_status.emit("Realtime mode")
+                self.show_notification.emit("Tutor", "", "Asking…")
+                self._rt_future = self.executor.submit(self._run_realtime)
+            else:
+                self.show_notification.emit("Tutor", "", "Asking…")
         else:
             self.ask_action.setText("Start Asking (F9)")
             print("UI: Exiting asking mode")
-            self._stop_recording_and_process()
-            if not getattr(self, 'chat_history', None):
-                self.executor.submit(self._say_preamble)
+            if getattr(self, 'use_realtime', False):
+                self._stop_recording_and_process()
+                self.show_notification.emit("Tutor", "", "Thinking...")
+            else:
+                self._stop_recording_and_process()
+                if not getattr(self, 'chat_history', None):
+                    self.executor.submit(self._say_preamble)
 
     def _say_preamble(self):
         print("Preamble: Starting")
@@ -688,7 +702,7 @@ class TutorTray(QSystemTrayIcon):
             self._last_cb_log = now
             #print(f"[cb] frames+={frames}, total={self._frames}, rms={rms:.5f}")
 
-    async def _stt(self, recording):
+    '''async def _stt(self, recording):
         print("STT: Starting transcription")
         recording.seek(0)
         result = await self.openai_client.audio.transcriptions.create(
@@ -696,7 +710,7 @@ class TutorTray(QSystemTrayIcon):
             file=recording
         )
         print("STT: Transcription finished")
-        return result.text
+        return result.text'''
 
     async def _ocr(self, screenshot):
         print("OCR: Starting request")
@@ -740,7 +754,7 @@ class TutorTray(QSystemTrayIcon):
 
 
         
-    async def _llm(self, combined_prompt):
+    '''async def _llm(self, combined_prompt):
         print("Claude: Starting request")
         prior = list(self.chat_history)
         messages = prior + [
@@ -759,9 +773,9 @@ class TutorTray(QSystemTrayIcon):
             system=SYSTEM_PROMPT
         ) as stream:
             async for chunk in stream.text_stream:
-                yield chunk
+                yield chunk'''
 
-    async def _tts(self, text):
+    '''async def _tts(self, text):
         print("TTS: Starting synthesis")
         response = await self.openai_client.audio.speech.create(
             model="gpt-4o-mini-tts",
@@ -770,7 +784,127 @@ class TutorTray(QSystemTrayIcon):
             response_format="wav"
         )
         print("TTS: Synthesis finished")
-        return response.read()
+        return response.read()'''
+    
+    async def _realtime_session(self, *, ocr_text: str | None = None):
+        print("Realtime session: Starting")
+        model = "gpt-4o-realtime-preview"
+        url = f"wss://api.openai.com/v1/realtime?model={model}"
+        headers = [
+            ("Authorization", f"Bearer {self.openai_client.api_key}"),
+            ("OpenAI-Beta", "realtime=v1")
+        ]
+        self.processing = True
+        async with ws_connect(url, headers=headers, open_timeout=15) as ws:
+            session_update = {
+                "type": "session_update",
+                "session": {
+                    "modalities": ["text", "audio"],
+                    "voice": "alloy",
+                    "output_audio_format": "wav",
+                    "input_audio_format": "pcm16",
+                    "turn_detection": {
+                        "type": "server_vad",
+                        "params": {
+                            "mode": "semantic",
+                            "silence_duration_ms": 400
+                        }
+                    },
+                    "input_audio_transcription": {
+                        "model": "gpt-4o-mini-transcribe",
+                        "language": "en"
+                    },
+                    "instructions": SYSTEM_PROMPT
+                }
+            }
+            await ws.send(json.dumps(session_update))
+            if ocr_text:
+                await ws.send(json.dumps({
+                    "type": "conversation.item.create",
+                    "item": {
+                        "type": "message",
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "input_text",
+                                "text": f"Screen content:\n{ocr_text}"
+                            }
+                        ]
+                    }
+                }))
+            
+            async def reader():
+                current_audio = bytearray()
+                saw_output = False
+                while self.processing:
+                    try:
+                        message = await ws.recv()
+                    except Exception:
+                        break
+                    if isinstance(message, (bytes, bytearray)):
+                        continue
+                    event = json.loads(message)
+                    etype = event.get("type", "")
+                    if etype == "response.created":
+                        self.start_thinking_animation()
+                        self.update_status.emit("Thinking...")
+                    elif etype == "response.text.delta":
+                        saw_output = True
+                    elif etype == "response.audio.delta":
+                        b64 = event.get("delta", "")
+                        if b64:
+                            if not current_audio and not self._first_audio_played:
+                                self._first_audio_played = True
+                                self.audio_started.emit()
+                            current_audio.extend(base64.b64decode(b64))
+                    elif etype == "response.done":
+                        if current_audio:
+                            self.play_audio(current_audio, wait=False)
+                            current_audio = bytearray()
+                        self.stop_thinking_animation()
+                        self.update_status.emit("Ready")
+                        self.processing = False
+                        break
+                    elif etype == "conversation.item.input_audio_transcription.completed":
+                        text = (event.get("transcript") or "").strip()
+                        if text:
+                            print(f"[You]: {text}")
+                    elif etype == "error":
+                        print("Realtime error", event)
+                
+            async def writer():
+                bytes_per_sample = 2  
+                sent_any = False
+                committed = False
+                while self.processing and self.is_recording:
+                    frames = []
+                    with self._lock:
+                        while self._buf:
+                            block = self._buf.popleft()  
+                            frames.append(block)
+                    if frames:
+                        f = np.concatenate(frames, axis=0).flatten()
+                        pcm16 = np.clip(f * 32767.0, -32768, 32767).astype(np.int16).tobytes()
+                        max_bytes = SR * bytes_per_sample * 0.20  
+                        for i in range(0, len(pcm16), int(max_bytes)):
+                            chunk = pcm16[i:i+int(max_bytes)]
+                            await ws.send(json.dumps({
+                                "type": "input_audio_buffer.append",
+                                "audio": base64.b64encode(chunk).decode("utf-8")
+                            }))
+                            sent_any = True
+                    if not self.is_recording and sent_any and not committed:
+                        await ws.send(json.dumps({"type": "input_audio_buffer.commit"}))
+                        await ws.send(json.dumps({"type": "response.create"}))
+                        committed = True
+                    await asyncio.sleep(0.05)
+            
+            tasks = [asyncio.create_task(reader()), asyncio.create_task(writer())]
+            try:
+                await asyncio.gather(*tasks)
+            finally:
+                for t in tasks:
+                    t.cancel()        
     
     def play_audio(self, audio_bytes, wait=False, emit_start=True):
         print("Audio: Preparing playback")
@@ -841,6 +975,11 @@ class TutorTray(QSystemTrayIcon):
         finally:
             self._stream = None
             self.is_recording = False
+
+        #early exit in realtime mode
+        if getattr(self, 'use_realtime', False):
+            self.update_status.emit("Waiting for AI")
+            return
         
         # Process the audio buffer
         with self._lock:
@@ -1034,6 +1173,18 @@ class TutorTray(QSystemTrayIcon):
                 'error': str(e)
             }
        
+    def _run_realtime(self):
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:   
+            with mss.mss() as sct:
+                img = sct.grab(sct.monitors[0])
+                png_bytes = mss.tools.to_png(img.rgb, img.size)
+            ocr_text = loop.run_until_complete(self._ocr(png_bytes))
+            loop.run_until_complete(self._realtime_session(ocr_text=ocr_text))
+        finally:
+            loop.close()
+    
     def _run_pipeline(self, screenshot, recording):
         print("Pipeline: Running in worker thread")
         loop = asyncio.new_event_loop()
