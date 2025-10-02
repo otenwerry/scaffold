@@ -608,17 +608,44 @@ class TutorTray(QSystemTrayIcon):
         """QMessageBox.information(None, "Settings", "Settings window coming soon!")"""
     
     def quit_app(self):
-        """Clean shutdown"""
+        print("Quit: Quitting app")
         self.is_recording = False
         self.setIcon(self._base_icon)
         if self._stream:
             self._stream.stop()
             self._stream.close()
+            print("Quit: Audio stream closed")
+        if self._rt_session_active and self._rt_loop:
+            print("Quit: Realtime session active")
+            if self._rt_writer_task:
+                asyncio.run_coroutine_threadsafe(
+                    self._cancel_writer_and_close(),
+                    self._rt_loop
+                )
+            time.sleep(0.5)
         if hasattr(self, '_ghk'):
             self._ghk.stop()
+            print("Quit: Global hotkey stopped")
         if hasattr(self, 'executor'):
             self.executor.shutdown(wait=False)
+            print("Quit: Executor shut down")
+        print("Quit: Exiting app")
         QApplication.quit()
+    
+    async def _cancel_writer_and_close(self):
+        if self._rt_writer_task and not self._rt_writer_task.done():
+            self._rt_writer_task.cancel()
+            try:
+                await self._rt_writer_task
+            except asyncio.CancelledError:
+                print("Quit: Writer task cancelled")
+        
+        if self._rt_ws:
+            try:
+                await self._rt_ws.close()
+                print("Quit: WebSocket closed")
+            except Exception as e:
+                print(f"Quit: Error closing WebSocket: {e}")
     
     @Slot(str)
     def _update_status(self, status):
@@ -638,6 +665,7 @@ class TutorTray(QSystemTrayIcon):
 
     def on_ask(self):
         print("UI: Ask button clicked")
+        print(f"UI: Current state - is_recording={self.is_recording}, session_active={self._rt_session_active}, should_send={self._rt_should_send_audio}")
         if not self.auth_manager.is_authenticated():
             self.show_auth_dialog()
             return
@@ -647,11 +675,14 @@ class TutorTray(QSystemTrayIcon):
             if self.use_realtime:
                 self.first_audio_played = False
                 if not self._rt_session_active:
+                    print("UI: Starting new realtime session")
                     self.update_status.emit("Connecting...")
                     self.show_notification.emit("Tutor", "", "Connecting...")
                     self._rt_future = self.executor.submit(self._start_realtime_session)
                 else:
+                    print("UI: Reusing existing realtime session")
                     self._rt_should_send_audio = True
+                    print(f"UI: Set should_send_audio to {self._rt_should_send_audio}")
                     self._start_recording_realtime()
             else:
                 self.show_notification.emit("Tutor", "", "Asking…")
@@ -776,7 +807,6 @@ class TutorTray(QSystemTrayIcon):
             self._last_cb_log = now
             #print(f"[cb] frames+={frames}, total={self._frames}, rms={rms:.5f}")
 
-
     async def _ocr(self, screenshot):
         print("OCR: Starting request")
         try:
@@ -846,152 +876,176 @@ class TutorTray(QSystemTrayIcon):
         ]
         
         ssl_context = ssl.create_default_context(cafile=certifi.where())
-        
-        async with ws_connect(url, additional_headers=headers, ssl=ssl_context, open_timeout=15) as ws:
-            self._rt_ws = ws
-            print("Realtime: Connected")
-            
-            # Configure session
-            session_update = {
-                "type": "session.update",
-                "session": {
-                    "modalities": ["text", "audio"],
-                    "voice": "alloy",
-                    "input_audio_format": "pcm16",
-                    "output_audio_format": "pcm16",
-                    "input_audio_transcription": {
-                        "model": "whisper-1"
-                    },
-                    "turn_detection": None,  # Manual control
-                    "instructions": SYSTEM_PROMPT
-                }
-            }
-            await ws.send(json.dumps(session_update))
-            print("Realtime: Session configured")
-            self.realtime_ready.emit()            
-            
-            # Start reader and writer tasks
-            async def reader():
-                current_audio = bytearray()
-                user_transcript = ""
-                assistant_response = ""
+        try:
+            async with ws_connect(url, additional_headers=headers, ssl=ssl_context, open_timeout=15) as ws:
+                self._rt_ws = ws
+                self._rt_session_active = True
+                print("Realtime: Connected")
                 
-                while True:
-                    try:
-                        message = await ws.recv()
-                    except Exception as e:
-                        print(f"Realtime: Reader stopped: {e}")
-                        break
+                # Configure session
+                session_update = {
+                    "type": "session.update",
+                    "session": {
+                        "modalities": ["text", "audio"],
+                        "voice": "alloy",
+                        "input_audio_format": "pcm16",
+                        "output_audio_format": "pcm16",
+                        "input_audio_transcription": {
+                            "model": "whisper-1"
+                        },
+                        "turn_detection": None,  # Manual control
+                        "instructions": SYSTEM_PROMPT
+                    }
+                }
+                await ws.send(json.dumps(session_update))
+                print("Realtime: Session configured")
+                self.realtime_ready.emit()            
+                
+                # Start reader and writer tasks
+                async def reader():
+                    current_audio = bytearray()
+                    user_transcript = ""
+                    assistant_response = ""
+                    turn_number = 0
                     
-                    if isinstance(message, (bytes, bytearray)):
-                        continue
-                    
-                    event = json.loads(message)
-                    etype = event.get("type", "")
-                    
-                    if etype == "session.created":
-                        print("Realtime: Session created")
-                    elif etype == "session.updated":
-                        print("Realtime: Session updated")
-                        self.update_status.emit("Recording")
-                    elif etype == "input_audio_buffer.speech_started":
-                        print("Realtime: Speech detected")
-                    elif etype == "input_audio_buffer.committed":
-                        print("Realtime: Audio committed")
-                    elif etype == "conversation.item.input_audio_transcription.completed":
-                        transcript = event.get("transcript", "").strip()
-                        if transcript:
-                            user_transcript = transcript
-                            print(f"Realtime: Transcript: {transcript}")
-                    elif etype == "response.created":
-                        print("Realtime: Response created")
-                    elif etype == "response.audio.delta":
-                        delta = event.get("delta", "")
-                        if delta:
-                            if not current_audio and not self._first_audio_played:
-                                self._first_audio_played = True
-                                self.audio_started.emit()
-                            current_audio.extend(base64.b64decode(delta))
-                    elif etype == "response.text.delta":
-                        delta = event.get("delta", "")
-                        assistant_response += delta
-                    elif etype == "response.audio.done":
-                        if current_audio:
-                            # Convert PCM16 to WAV for playback
-                            wav_io = io.BytesIO()
-                            with wave.open(wav_io, 'wb') as wf:
-                                wf.setnchannels(1)
-                                wf.setsampwidth(2)
-                                wf.setframerate(24000)
-                                wf.writeframes(bytes(current_audio))
-                            self.play_audio(wav_io.getvalue(), wait=False)
+                    while True:
+                        try:
+                            message = await ws.recv()
+                        except Exception as e:
+                            print(f"Realtime: Reader stopped: {e}")
+                            break
+                        
+                        if isinstance(message, (bytes, bytearray)):
+                            continue
+                        
+                        event = json.loads(message)
+                        etype = event.get("type", "")
+                        print(f"Realtime: Event type: {etype}")
+                        
+                        if etype == "session.created":
+                            print("Realtime: Session created")
+                        elif etype == "session.updated":
+                            print("Realtime: Session updated")
+                            self.update_status.emit("Recording")
+                        elif etype == "input_audio_buffer.speech_started":
+                            print("Realtime: Speech detected")
+                        elif etype == "input_audio_buffer.committed":
+                            print("Realtime: Audio committed")
+                        elif etype == "conversation.item.input_audio_transcription.completed":
+                            transcript = event.get("transcript", "").strip()
+                            if transcript:
+                                user_transcript = transcript
+                                print(f"Realtime: Transcript: {transcript}")
+                        elif etype == "response.created":
+                            print("Realtime: Response created")
+                        elif etype == "response.audio.delta":
+                            delta = event.get("delta", "")
+                            if delta:
+                                if not current_audio and not self._first_audio_played:
+                                    self._first_audio_played = True
+                                    self.audio_started.emit()
+                                current_audio.extend(base64.b64decode(delta))
+                        elif etype == "response.text.delta":
+                            delta = event.get("delta", "")
+                            assistant_response += delta
+                        elif etype == "response.audio.done":
+                            if current_audio:
+                                # Convert PCM16 to WAV for playback
+                                wav_io = io.BytesIO()
+                                with wave.open(wav_io, 'wb') as wf:
+                                    wf.setnchannels(1)
+                                    wf.setsampwidth(2)
+                                    wf.setframerate(24000)
+                                    wf.writeframes(bytes(current_audio))
+                                self.play_audio(wav_io.getvalue(), wait=False)
+                                current_audio = bytearray()
+                        elif etype == "response.done":
+                            turn_number += 1
+                            print(f"Realtime: Response complete, turn {turn_number}")
+                            self.update_status.emit("Ready")
+                            
+                            # Track usage
+                            if user_transcript or assistant_response:
+                                asyncio.create_task(self._track_realtime_usage(
+                                    user_transcript, 
+                                    assistant_response
+                                ))
+                            
+                            # Show notification
+                            self.show_notification.emit(
+                                "Tutor",
+                                f"Q: {user_transcript[:50]}..." if user_transcript else "",
+                                f"A: {assistant_response[:100]}..." if assistant_response else ""
+                            )
+                            user_transcript = ""
+                            assistant_response = ""
                             current_audio = bytearray()
-                    elif etype == "response.done":
-                        print("Realtime: Response complete")
-                        self.update_status.emit("Ready")
+                            print(f"Realtime: Ready for next question, turn {turn_number} complete")
+                        elif etype == "error":
+                            print(f"Realtime: Error event: {event}")
+                            self.show_error.emit(f"Realtime error: {event.get('error', {}).get('message', 'Unknown error')}")
+                
+                async def writer():
+                    loop_count = 0
+                    while True:
+                        loop_count += 1
+                        if loop_count % 40 == 0:
+                            print(f"Realtime: Writer loop count: {loop_count}, should_send={self._rt_should_send_audio}, buf_size={len(self._buf)}")
+                        if not self._rt_should_send_audio:
+                            await asyncio.sleep(0.05)
+                            continue
+                        # Send audio chunks from buffer
+                        frames = []
+                        with self._lock:
+                            while self._buf:
+                                frames.append(self._buf.popleft())
                         
-                        # Track usage
-                        if user_transcript or assistant_response:
-                            asyncio.create_task(self._track_realtime_usage(
-                                user_transcript, 
-                                assistant_response
-                            ))
-                        
-                        # Show notification
-                        self.show_notification.emit(
-                            "Tutor",
-                            f"Q: {user_transcript[:50]}..." if user_transcript else "",
-                            f"A: {assistant_response[:100]}..." if assistant_response else ""
-                        )
-                        user_transcript = ""
-                        assistant_response = ""
-                        current_audio = bytearray()
-                        print("Realtime: Ready for next question")
-                    elif etype == "error":
-                        print(f"Realtime: Error event: {event}")
-                        self.show_error.emit(f"Realtime error: {event.get('error', {}).get('message', 'Unknown error')}")
-            
-            async def writer():
-                while True:
-                    if not self._rt_should_send_audio:
+                        if frames:
+                            audio = np.concatenate(frames, axis=0).flatten()
+                            pcm16 = np.clip(audio * 32767, -32768, 32767).astype(np.int16).tobytes()
+                            # Send in chunks
+                            chunk_size = int(SR_REALTIME * 0.1 * 2)  # 100ms chunks
+                            chunks_sent = 0
+                            for i in range(0, len(pcm16), chunk_size):
+                                chunk = pcm16[i:i+chunk_size]
+                                try:
+                                    await ws.send(json.dumps({
+                                        "type": "input_audio_buffer.append",
+                                        "audio": base64.b64encode(chunk).decode("utf-8")
+                                    }))
+                                    chunks_sent += 1
+                                except Exception as e:
+                                    print(f"Realtime: Writer send error: {e}")
+                                    return
+                            if chunks_sent > 0:
+                                print(f"Realtime: Writer sent {chunks_sent} chunks")
                         await asyncio.sleep(0.05)
-                        continue
-                    # Send audio chunks from buffer
-                    frames = []
-                    with self._lock:
-                        while self._buf:
-                            frames.append(self._buf.popleft())
-                    
-                    if frames:
-                        audio = np.concatenate(frames, axis=0).flatten()
-                        pcm16 = np.clip(audio * 32767, -32768, 32767).astype(np.int16).tobytes()
-                        
-                        # Send in chunks
-                        chunk_size = int(SR_REALTIME * 0.1 * 2)  # 100ms chunks
-                        for i in range(0, len(pcm16), chunk_size):
-                            chunk = pcm16[i:i+chunk_size]
-                            try:
-                                await ws.send(json.dumps({
-                                    "type": "input_audio_buffer.append",
-                                    "audio": base64.b64encode(chunk).decode("utf-8")
-                                }))
-                            except Exception as e:
-                                print(f"Realtime: Writer send error: {e}")
-                                return
-                    
-                    await asyncio.sleep(0.05)
-            
-            # Run both tasks
-            reader_task = asyncio.create_task(reader())
-            writer_task = asyncio.create_task(writer())
-            
-            try:
-                await asyncio.gather(reader_task, writer_task)
-            except asyncio.CancelledError:
-                print("Realtime: Tasks cancelled")
-            finally:
-                reader_task.cancel()
-                writer_task.cancel()
+                
+                # Run both tasks
+                reader_task = asyncio.create_task(reader())
+                writer_task = asyncio.create_task(writer())
+                self._rt_writer_task = writer_task
+                print(f"Realtime: Reader and writer tasks started")
+                
+                try:
+                    await asyncio.gather(reader_task, writer_task)
+                except asyncio.CancelledError:
+                    print("Realtime: Tasks cancelled")
+                finally:
+                    print("Realtime: Cleaning up tasks")
+                    reader_task.cancel()
+                    writer_task.cancel()
+                    self._rt_session_active = False
+                    self._rt_writer_task = None
+                    print(f"Realtime: Session active flag set to {self._rt_session_active}")
+        except Exception as e:
+            print(f"Realtime: Session error: {e}")
+            self.show_error.emit(f"Realtime error: {e}")
+        finally:
+            self._rt_ws = None
+            self._rt_session_active = False
+            self._rt_writer_task = None
+            print("Realtime: Session ended")
 
     def play_audio(self, audio_bytes, wait=False, emit_start=True):
         print("Audio: Preparing playback")
