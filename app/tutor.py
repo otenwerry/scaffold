@@ -60,6 +60,7 @@ SYSTEM_PROMPT = ""
 SUPABASE_URL = "https://giohlugbdruxxlgzdtlj.supabase.co"
 SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdpb2hsdWdiZHJ1eHhsZ3pkdGxqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY0MTY4MzUsImV4cCI6MjA3MTk5MjgzNX0.wJVWrwyo3RLPyrM4D0867GhjenY1Z-lwaZFN4GUQloM"
 REALTIME_ONLY = True
+APPLE_OCR = True
 
 def asset_path(name: str) -> str:
     if getattr(sys, 'frozen', False):
@@ -739,7 +740,10 @@ class TutorTray(QSystemTrayIcon):
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         try:
-            ocr_text = loop.run_until_complete(self._apple_ocr(screenshot))
+            if APPLE_OCR:
+                ocr_text = loop.run_until_complete(self._apple_ocr(screenshot))
+            else:
+                ocr_text = loop.run_until_complete(self._ocr(screenshot))
             print(f"[{timestamp()}] Realtime: OCR completed, {len(ocr_text)} chars")
             # Signal the realtime session to add OCR and request response
             if self._rt_loop and self._rt_ws:
@@ -812,7 +816,7 @@ class TutorTray(QSystemTrayIcon):
             tmp.write(screenshot)
             tmp_path = tmp.name
         try:
-            url = NSURL.fileURLWithPath(tmp_path)
+            url = NSURL.fileURLWithPath_(tmp_path)
             request = VNRecognizeTextRequest.alloc().init()
             request.setRecognitionLevel_(VNRequestTextRecognitionLevelAccurate)
             request.setUsesLanguageCorrection_(True)
@@ -1029,7 +1033,7 @@ class TutorTray(QSystemTrayIcon):
             print("Realtime: Session ended")
 
     def play_audio(self, audio_bytes, wait=False, emit_start=True):
-        print("Audio: Preparing playback")
+        print(f"[{timestamp()}] Audio: Preparing playback")
         try:
             if emit_start and not self._first_audio_played:
                 self._first_audio_played = True
@@ -1044,7 +1048,7 @@ class TutorTray(QSystemTrayIcon):
             sd.play(audio, fs)
             if wait:
                 sd.wait()
-            print("Audio: Playback started")
+            print(f"[{timestamp()}] Audio: Playback started")
         except Exception as e:
             print(f"Audio playback error: {e}")
     
@@ -1203,7 +1207,10 @@ class TutorTray(QSystemTrayIcon):
                 mins_recording = None
             recording.seek(0)
             stt_task = asyncio.create_task(self._stt(recording))
-            ocr_task = asyncio.create_task(self._apple_ocr(screenshot))
+            if APPLE_OCR:
+                ocr_task = asyncio.create_task(self._apple_ocr(screenshot))
+            else:
+                ocr_task = asyncio.create_task(self._ocr(screenshot))
             transcript, ocr_text = await asyncio.gather(stt_task, ocr_task)
             print("Pipeline: STT and OCRcompleted")
             combined_prompt = f"{transcript}\n\nScreen content:\n{ocr_text}"
