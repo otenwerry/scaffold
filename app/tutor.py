@@ -289,19 +289,19 @@ class AuthManager:
     async def increment_usage(
         self,   
         *, 
-        mins_recording: float | None = None, 
-        input_words: int | None = None, 
-        output_words: int | None = None
+        text_input_tokens: int = 0,
+        text_output_tokens: int = 0,
+        audio_input_tokens: int = 0,
+        audio_output_tokens: int = 0
     ) -> dict | None:
         if not self.user:
             raise RuntimeError("User not authenticated")
-        params = {}
-        if mins_recording is not None:
-            params['p_minutes_recording'] = mins_recording
-        if input_words is not None:
-            params['p_input_words'] = input_words
-        if output_words is not None:
-            params['p_output_words'] = output_words
+        params = {
+            'p_text_input_tokens': text_input_tokens,
+            'p_text_output_tokens': text_output_tokens,
+            'p_audio_input_tokens': audio_input_tokens,
+            'p_audio_output_tokens': audio_output_tokens
+        }
         try:
             response = self.supabase.rpc('rpc_track_usage', params).execute()
             row = response.data[0]
@@ -840,20 +840,43 @@ class TutorTray(QSystemTrayIcon):
             except Exception:
                 pass
 
-    async def _track_realtime_usage(self, user_text, assistant_text):
-        """Placeholder function"""
+    async def _track_realtime_usage(self, usage):
         try:
-            mins_recording = 0.5  
+            if not usage:
+                print("Realtime: No usage data to track")
+                return
+            total_input = usage.get("input_tokens", 0)
+            total_output = usage.get("output_tokens", 0)
             
-            input_words = len(user_text.split()) if user_text else 0
-            output_words = len(assistant_text.split()) if assistant_text else 0
+            input_details = usage.get("input_token_details", {})
+            output_details = usage.get("output_token_details", {})
             
+            audio_input_tokens = input_details.get("audio_tokens", 0)
+            audio_output_tokens = output_details.get("audio_tokens", 0)
+            
+            text_input_tokens = total_input - audio_input_tokens
+            text_output_tokens = total_output - audio_output_tokens
+
+            text_input_cost = (text_input_tokens / 1_000_000) * 4
+            text_output_cost = (text_output_tokens / 1_000_000) * 16
+            audio_input_cost = (audio_input_tokens / 1_000_000) * 32
+            audio_output_cost = (audio_output_tokens / 1_000_000) * 64
+
+            total_cost = text_input_cost + text_output_cost + audio_input_cost + audio_output_cost
+
+            print(f"Realtime: Usage - Text in: {text_input_tokens}tok (${text_input_cost:.4f}), "
+            f"Text out: {text_output_tokens}tok (${text_output_cost:.4f}), "
+            f"Audio in: {audio_input_tokens}tok (${audio_input_cost:.4f}), "
+            f"Audio out: {audio_output_tokens}tok (${audio_output_cost:.4f}) - "
+            f"Total: ${total_cost:.4f}")
+
             await self.auth_manager.increment_usage(
-                mins_recording=mins_recording,
-                input_words=input_words,
-                output_words=output_words
+                text_input_tokens=text_input_tokens,
+                text_output_tokens=text_output_tokens,
+                audio_input_tokens=audio_input_tokens,
+                audio_output_tokens=audio_output_tokens
             )
-            print(f"Realtime: Usage tracked - {input_words} in, {output_words} out")
+        
         except Exception as e:
             print(f"Realtime: Usage tracking error: {e}")
          
@@ -861,7 +884,8 @@ class TutorTray(QSystemTrayIcon):
         """Main realtime session - connects, streams audio, receives responses"""
         
         print("Realtime: Connecting to WebSocket")
-        model = "gpt-4o-realtime-preview-2024-12-17"
+        #model = "gpt-4o-realtime-preview-2024-12-17"
+        model = "gpt-realtime"
         url = f"wss://api.openai.com/v1/realtime?model={model}"
         headers = [
             ("Authorization", f"Bearer {self.openai_client.api_key}"),
@@ -956,12 +980,23 @@ class TutorTray(QSystemTrayIcon):
                             turn_number += 1
                             print(f"Realtime: Response complete, turn {turn_number}")
                             self.update_status.emit("Ready")
+                            usage = event.get("response", {}).get("usage", {})
+                            if usage:
+                                input_tokens = usage.get("input_tokens", 0)
+                                output_tokens = usage.get("output_tokens", 0)
+                                input_token_details = usage.get("input_token_details", {})
+                                output_token_details = usage.get("output_token_details", {})
+                                
+                                # Audio is counted as tokens too
+                                audio_input_tokens = input_token_details.get("audio_tokens", 0)
+                                audio_output_tokens = output_token_details.get("audio_tokens", 0)
+                                
+                                print(f"Usage - Input: {input_tokens} tokens (audio: {audio_input_tokens}), Output: {output_tokens} tokens (audio: {audio_output_tokens})")
                             
                             # Track usage
                             if user_transcript or assistant_response:
                                 asyncio.create_task(self._track_realtime_usage(
-                                    user_transcript, 
-                                    assistant_response
+                                    usage
                                 ))
                             
                             # Show notification
@@ -974,6 +1009,12 @@ class TutorTray(QSystemTrayIcon):
                             assistant_response = ""
                             current_audio = bytearray()
                             print(f"Realtime: Ready for next question, turn {turn_number} complete")
+                        elif etype == "rate_limits.updated":
+                            rate_limits = event.get("rate_limits", [])
+                            for limit in rate_limits:
+                                if limit.get("name") == "requests":
+                                    continue
+                                print(f"Rate limit: {limit.get('name')} - {limit.get('remaining')}/{limit.get('limit')}")
                         elif etype == "error":
                             print(f"Realtime: Error event: {event}")
                             self.show_error.emit(f"Realtime error: {event.get('error', {}).get('message', 'Unknown error')}")
