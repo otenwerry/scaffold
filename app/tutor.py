@@ -316,6 +316,7 @@ class TutorTray(QSystemTrayIcon):
     pipeline_complete = Signal(dict)
     audio_started = Signal()
     auth_required = Signal()
+    realtime_ready = Signal()
     def __init__(self, app):
         super().__init__()
         self.app = app
@@ -368,8 +369,8 @@ class TutorTray(QSystemTrayIcon):
         self.animation_timer = QTimer(self)
         self.animation_timer.setInterval(250)
         self.animation_timer.timeout.connect(self._tick_thinking_icon)
-        self.audio_started.connect(self.stop_thinking_animation)
         self._settings_dialog = None 
+        self.realtime_ready.connect(self._start_recording_realtime)
 
         # Set up global hotkey 
         self._ghk = pk.GlobalHotKeys({
@@ -519,21 +520,21 @@ class TutorTray(QSystemTrayIcon):
             self.setIcon(QIcon(pixmap))
         print("Icon set")
     
-    def start_thinking_animation(self):
+    '''def start_thinking_animation(self):
         if self._animating:
             return
         self._thinking_index = 0
         self._animating = True
         self.setIcon(self._thinking_icons[self._thinking_index])
         self.animation_timer.start()
-    
-    def stop_thinking_animation(self):
+'''    
+    '''def stop_thinking_animation(self):
         if not self._animating:
             return
         self.animation_timer.stop()
         self._animating = False
         self.setIcon(self._base_icon)
-
+'''
     def _tick_thinking_icon(self):
         if not self._animating:
             return
@@ -621,7 +622,6 @@ class TutorTray(QSystemTrayIcon):
     def quit_app(self):
         """Clean shutdown"""
         self.is_recording = False
-        self.stop_thinking_animation()
         self.setIcon(self._base_icon)
         if self._stream:
             self._stream.stop()
@@ -661,7 +661,6 @@ class TutorTray(QSystemTrayIcon):
                 self.update_status.emit("Connecting...")
                 self.show_notification.emit("Tutor", "", "Connecting...")
                 self._rt_future = self.executor.submit(self._start_realtime_session)
-                QTimer.singleShot(500, self._start_recording_realtime)
             else:
                 self.show_notification.emit("Tutor", "", "Asking…")
                 self._start_recording()
@@ -916,6 +915,7 @@ class TutorTray(QSystemTrayIcon):
             }
             await ws.send(json.dumps(session_update))
             print("Realtime: Session configured")
+            self.realtime_ready.emit()            
             
             # Start reader and writer tasks
             async def reader():
@@ -951,7 +951,7 @@ class TutorTray(QSystemTrayIcon):
                             user_transcript = transcript
                             print(f"Realtime: Transcript: {transcript}")
                     elif etype == "response.created":
-                        self.start_thinking_animation()
+                        print("Realtime: Response created")
                     elif etype == "response.audio.delta":
                         delta = event.get("delta", "")
                         if delta:
@@ -975,7 +975,6 @@ class TutorTray(QSystemTrayIcon):
                             current_audio = bytearray()
                     elif etype == "response.done":
                         print("Realtime: Response complete")
-                        self.stop_thinking_animation()
                         self.update_status.emit("Ready")
                         
                         # Track usage
@@ -1172,7 +1171,6 @@ class TutorTray(QSystemTrayIcon):
 
         self.processing = True
         self._first_audio_played = False
-        self.start_thinking_animation()
         self.update_status.emit("Processing with AI")
         self.show_notification.emit("Tutor", "", "Processing your question")
         print("Pipeline: Submitting to executor")
@@ -1320,7 +1318,6 @@ class TutorTray(QSystemTrayIcon):
 
     def _on_pipeline_complete(self, result):
         print("Pipeline: Completion callback invoked")
-        self.stop_thinking_animation()
         if 'error' in result:
             print(f"Pipeline: Error in result: {result['error']}")
             self.show_error.emit(f"An error occurred: {result['error']}")
