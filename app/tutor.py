@@ -39,6 +39,7 @@ from typing import Optional
 from websockets.asyncio.client import connect as ws_connect
 import ssl
 import certifi
+from datetime import datetime
 
 from Foundation import NSURL
 '''from Vision import (
@@ -71,6 +72,9 @@ def asset_path(name: str) -> str:
     else:
         base = os.path.dirname(os.path.abspath(__file__))
     return os.path.join(base, name)
+
+def timestamp():
+    return datetime.now().strftime("%H:%M:%S.%f")[:-3]
 
 class OTPDialog(QDialog):
     def __init__(self, parent=None):
@@ -664,7 +668,7 @@ class TutorTray(QSystemTrayIcon):
         QMessageBox.critical(None, "Error", message)
 
     def on_ask(self):
-        print("UI: Ask button clicked")
+        print(f"[{timestamp()}] UI: Ask button clicked")
         print(f"UI: Current state - is_recording={self.is_recording}, session_active={self._rt_session_active}, should_send={self._rt_should_send_audio}")
         if not self.auth_manager.is_authenticated():
             self.show_auth_dialog()
@@ -691,21 +695,6 @@ class TutorTray(QSystemTrayIcon):
             self.ask_action.setText("Start Asking (F9)")
             print("UI: Exiting asking mode")
             self._stop_recording_and_process()
-
-    def _say_preamble(self):
-        print("Preamble: Starting")
-        try:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            audio = loop.run_until_complete(self._tts("Hmm, let me think."))
-            self.play_audio(audio, wait=False, emit_start=False)
-        except Exception as e:
-            print(f"Preamble: TTS error: {e}")
-        finally:
-            try:
-                loop.close()
-            except Exception as _:
-                pass
 
     def _start_recording_realtime(self):
         print("Recording: Start requested (realtime)")
@@ -745,13 +734,13 @@ class TutorTray(QSystemTrayIcon):
             print("Realtime: Session ended")
 
     def _finalize_realtime(self, screenshot):
-        print("Realtime: Finalizing with OCR")
+        print(f"[{timestamp()}] Realtime: Finalizing with OCR")
         self._rt_should_send_audio = False
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         try:
             ocr_text = loop.run_until_complete(self._ocr(screenshot))
-            print(f"Realtime: OCR completed, {len(ocr_text)} chars")
+            print(f"[{timestamp()}] Realtime: OCR completed, {len(ocr_text)} chars")
             
             # Signal the realtime session to add OCR and request response
             if self._rt_loop and self._rt_ws:
@@ -768,7 +757,7 @@ class TutorTray(QSystemTrayIcon):
         if not self._rt_ws:
             return
         
-        print("Realtime: Sending OCR text and requesting response")
+        print(f"[{timestamp()}] Realtime: Sending OCR text and requesting response")
         
         if ocr_text and ocr_text.strip():
             await self._rt_ws.send(json.dumps({
@@ -789,6 +778,7 @@ class TutorTray(QSystemTrayIcon):
         await self._rt_ws.send(json.dumps({
             "type": "response.create"
         }))
+        print(f"[{timestamp()}] Realtime: Response requested")
 
     def _audio_cb(self, indata, frames, t, status):
         if status:
@@ -808,11 +798,11 @@ class TutorTray(QSystemTrayIcon):
             #print(f"[cb] frames+={frames}, total={self._frames}, rms={rms:.5f}")
 
     async def _ocr(self, screenshot):
-        print("OCR: Starting request")
+        print(f"[{timestamp()}] OCR: Starting request")
         try:
             img = Image.open(io.BytesIO(screenshot))
             text = pytesseract.image_to_string(img)
-            print(f"OCR: Extracted {len(text)} characters")
+            print(f"[{timestamp()}] OCR: Extracted {len(text)} characters")
             return text.strip()
         except Exception as e:
             print(f"OCR: Error occurred: {e}")
@@ -920,7 +910,6 @@ class TutorTray(QSystemTrayIcon):
                         
                         event = json.loads(message)
                         etype = event.get("type", "")
-                        print(f"Realtime: Event type: {etype}")
                         
                         if etype == "session.created":
                             print("Realtime: Session created")
@@ -930,14 +919,14 @@ class TutorTray(QSystemTrayIcon):
                         elif etype == "input_audio_buffer.speech_started":
                             print("Realtime: Speech detected")
                         elif etype == "input_audio_buffer.committed":
-                            print("Realtime: Audio committed")
+                            print(f"[{timestamp()}] Realtime: Audio committed")
                         elif etype == "conversation.item.input_audio_transcription.completed":
                             transcript = event.get("transcript", "").strip()
                             if transcript:
                                 user_transcript = transcript
-                                print(f"Realtime: Transcript: {transcript}")
+                                print(f"[{timestamp()}] Realtime: Transcript: {transcript}")
                         elif etype == "response.created":
-                            print("Realtime: Response created")
+                            print(f"[{timestamp()}] Realtime: Response created")
                         elif etype == "response.audio.delta":
                             delta = event.get("delta", "")
                             if delta:
@@ -986,11 +975,7 @@ class TutorTray(QSystemTrayIcon):
                             self.show_error.emit(f"Realtime error: {event.get('error', {}).get('message', 'Unknown error')}")
                 
                 async def writer():
-                    loop_count = 0
                     while True:
-                        loop_count += 1
-                        if loop_count % 40 == 0:
-                            print(f"Realtime: Writer loop count: {loop_count}, should_send={self._rt_should_send_audio}, buf_size={len(self._buf)}")
                         if not self._rt_should_send_audio:
                             await asyncio.sleep(0.05)
                             continue
@@ -1005,7 +990,6 @@ class TutorTray(QSystemTrayIcon):
                             pcm16 = np.clip(audio * 32767, -32768, 32767).astype(np.int16).tobytes()
                             # Send in chunks
                             chunk_size = int(SR_REALTIME * 0.1 * 2)  # 100ms chunks
-                            chunks_sent = 0
                             for i in range(0, len(pcm16), chunk_size):
                                 chunk = pcm16[i:i+chunk_size]
                                 try:
@@ -1013,12 +997,9 @@ class TutorTray(QSystemTrayIcon):
                                         "type": "input_audio_buffer.append",
                                         "audio": base64.b64encode(chunk).decode("utf-8")
                                     }))
-                                    chunks_sent += 1
                                 except Exception as e:
                                     print(f"Realtime: Writer send error: {e}")
                                     return
-                            if chunks_sent > 0:
-                                print(f"Realtime: Writer sent {chunks_sent} chunks")
                         await asyncio.sleep(0.05)
                 
                 # Run both tasks
@@ -1103,7 +1084,7 @@ class TutorTray(QSystemTrayIcon):
         return samples[start:end]
 
     def _stop_recording_and_process(self):
-        print("Recording: Stop requested")
+        print(f"[{timestamp()}] Recording: Stop requested")
         if not self.is_recording:
             self.update_status.emit("No recording to process")
             print("Recording: Not recording; nothing to stop")
@@ -1113,7 +1094,7 @@ class TutorTray(QSystemTrayIcon):
             if self._stream:
                 self._stream.stop()
                 self._stream.close()
-                print("Recording: Stream stopped and closed")
+                print(f"[{timestamp()}] Recording: Stream stopped and closed")
         finally:
             self._stream = None
             self.is_recording = False
@@ -1121,12 +1102,12 @@ class TutorTray(QSystemTrayIcon):
         if self.use_realtime:
             # Take screenshot and do OCR
             self.update_status.emit("Taking screenshot")
-            print("Screenshot: Capturing screen")
+            print(f"[{timestamp()}] Screenshot: Capturing screen")
             try:
                 with mss.mss() as sct:
                     img = sct.grab(sct.monitors[0])
                     png_bytes = mss.tools.to_png(img.rgb, img.size)
-                print("Screenshot: Captured")
+                print(f"[{timestamp()}] Screenshot: Captured")
             except Exception as e:
                 print(f"Screenshot: Error occurred: {e}")
                 png_bytes = b""
