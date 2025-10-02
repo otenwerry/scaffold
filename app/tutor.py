@@ -933,6 +933,7 @@ class TutorTray(QSystemTrayIcon):
                                 if not current_audio and not self._first_audio_played:
                                     self._first_audio_played = True
                                     self.audio_started.emit()
+                                    print(f"[{timestamp()}] Realtime: First audio chunk received")
                                 current_audio.extend(base64.b64decode(delta))
                         elif etype == "response.text.delta":
                             delta = event.get("delta", "")
