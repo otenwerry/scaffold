@@ -42,11 +42,11 @@ import certifi
 from datetime import datetime
 
 from Foundation import NSURL
-'''from Vision import (
+from Vision import (
     VNImageRequestHandler,
     VNRecognizeTextRequest,
     VNRequestTextRecognitionLevelAccurate,
-)'''
+)
 from supabase import create_client, Client
 import json
 import keyring
@@ -739,9 +739,8 @@ class TutorTray(QSystemTrayIcon):
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         try:
-            ocr_text = loop.run_until_complete(self._ocr(screenshot))
+            ocr_text = loop.run_until_complete(self._apple_ocr(screenshot))
             print(f"[{timestamp()}] Realtime: OCR completed, {len(ocr_text)} chars")
-            
             # Signal the realtime session to add OCR and request response
             if self._rt_loop and self._rt_ws:
                 asyncio.run_coroutine_threadsafe(
@@ -808,7 +807,7 @@ class TutorTray(QSystemTrayIcon):
             print(f"OCR: Error occurred: {e}")
             return f"OCR: Error occurred: {e}"
 
-    '''async def _apple_ocr(self, screenshot):
+    async def _apple_ocr(self, screenshot):
         with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp:
             tmp.write(screenshot)
             tmp_path = tmp.name
@@ -835,7 +834,7 @@ class TutorTray(QSystemTrayIcon):
             try:
                 os.unlink(tmp_path)
             except Exception:
-                pass'''
+                pass
 
     async def _track_realtime_usage(self, user_text, assistant_text):
         """Placeholder function"""
@@ -1204,7 +1203,7 @@ class TutorTray(QSystemTrayIcon):
                 mins_recording = None
             recording.seek(0)
             stt_task = asyncio.create_task(self._stt(recording))
-            ocr_task = asyncio.create_task(self._ocr(screenshot))
+            ocr_task = asyncio.create_task(self._apple_ocr(screenshot))
             transcript, ocr_text = await asyncio.gather(stt_task, ocr_task)
             print("Pipeline: STT and OCRcompleted")
             combined_prompt = f"{transcript}\n\nScreen content:\n{ocr_text}"
