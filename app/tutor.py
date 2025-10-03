@@ -37,25 +37,30 @@ from datetime import datetime
 from ui.settings import SettingsDialog
 from typing import Optional
 from websockets.asyncio.client import connect as ws_connect
+import ssl
+import certifi
+from datetime import datetime
 
 from Foundation import NSURL
-'''from Vision import (
+from Vision import (
     VNImageRequestHandler,
     VNRecognizeTextRequest,
     VNRequestTextRecognitionLevelAccurate,
-)'''
+)
 from supabase import create_client, Client
 import json
 import keyring
 
 SR = 16000
-FRAME_MS = 20 #20ms frames
-BLOCKSIZE = int(SR * FRAME_MS / 1000) #20ms blocks
+SR_REALTIME = 24000
+FRAME_MS = 20 
+BLOCKSIZE = int(SR * FRAME_MS / 1000) 
 RING_SECONDS = 60 #60 seconds of audio to buffer
 SYSTEM_PROMPT = ""
 SUPABASE_URL = "https://giohlugbdruxxlgzdtlj.supabase.co"
 SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdpb2hsdWdiZHJ1eHhsZ3pkdGxqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY0MTY4MzUsImV4cCI6MjA3MTk5MjgzNX0.wJVWrwyo3RLPyrM4D0867GhjenY1Z-lwaZFN4GUQloM"
 REALTIME_ONLY = True
+APPLE_OCR = True
 
 def asset_path(name: str) -> str:
     if getattr(sys, 'frozen', False):
@@ -68,6 +73,9 @@ def asset_path(name: str) -> str:
     else:
         base = os.path.dirname(os.path.abspath(__file__))
     return os.path.join(base, name)
+
+def timestamp():
+    return datetime.now().strftime("%H:%M:%S.%f")[:-3]
 
 class OTPDialog(QDialog):
     def __init__(self, parent=None):
@@ -281,19 +289,19 @@ class AuthManager:
     async def increment_usage(
         self,   
         *, 
-        mins_recording: float | None = None, 
-        input_words: int | None = None, 
-        output_words: int | None = None
+        text_input_tokens: int = 0,
+        text_output_tokens: int = 0,
+        audio_input_tokens: int = 0,
+        audio_output_tokens: int = 0
     ) -> dict | None:
         if not self.user:
             raise RuntimeError("User not authenticated")
-        params = {}
-        if mins_recording is not None:
-            params['p_minutes_recording'] = mins_recording
-        if input_words is not None:
-            params['p_input_words'] = input_words
-        if output_words is not None:
-            params['p_output_words'] = output_words
+        params = {
+            'p_text_input_tokens': text_input_tokens,
+            'p_text_output_tokens': text_output_tokens,
+            'p_audio_input_tokens': audio_input_tokens,
+            'p_audio_output_tokens': audio_output_tokens
+        }
         try:
             response = self.supabase.rpc('rpc_track_usage', params).execute()
             row = response.data[0]
@@ -313,6 +321,7 @@ class TutorTray(QSystemTrayIcon):
     pipeline_complete = Signal(dict)
     audio_started = Signal()
     auth_required = Signal()
+    realtime_ready = Signal()
     def __init__(self, app):
         super().__init__()
         self.app = app
@@ -331,6 +340,12 @@ class TutorTray(QSystemTrayIcon):
         self.show_notification.connect(self._show_notification, Qt.ConnectionType.QueuedConnection)
         self.use_realtime = REALTIME_ONLY
         self._rt_future = None
+        self._rt_ws = None
+        self._rt_loop = None
+        self._rt_task = None
+        self._rt_session_active = False
+        self._rt_writer_task = None
+        self._rt_should_send_audio = False  
         #debug state
         self._last_rms = 0.0
         self._frames = 0
@@ -362,8 +377,8 @@ class TutorTray(QSystemTrayIcon):
         self.animation_timer = QTimer(self)
         self.animation_timer.setInterval(250)
         self.animation_timer.timeout.connect(self._tick_thinking_icon)
-        self.audio_started.connect(self.stop_thinking_animation)
         self._settings_dialog = None 
+        self.realtime_ready.connect(self._start_recording_realtime)
 
         # Set up global hotkey 
         self._ghk = pk.GlobalHotKeys({
@@ -517,21 +532,6 @@ class TutorTray(QSystemTrayIcon):
             painter.end()
             self.setIcon(QIcon(pixmap))
         print("Icon set")
-    
-    def start_thinking_animation(self):
-        if self._animating:
-            return
-        self._thinking_index = 0
-        self._animating = True
-        self.setIcon(self._thinking_icons[self._thinking_index])
-        self.animation_timer.start()
-    
-    def stop_thinking_animation(self):
-        if not self._animating:
-            return
-        self.animation_timer.stop()
-        self._animating = False
-        self.setIcon(self._base_icon)
 
     def _tick_thinking_icon(self):
         if not self._animating:
@@ -618,18 +618,44 @@ class TutorTray(QSystemTrayIcon):
         """QMessageBox.information(None, "Settings", "Settings window coming soon!")"""
     
     def quit_app(self):
-        """Clean shutdown"""
+        print("Quit: Quitting app")
         self.is_recording = False
-        self.stop_thinking_animation()
         self.setIcon(self._base_icon)
         if self._stream:
             self._stream.stop()
             self._stream.close()
+            print("Quit: Audio stream closed")
+        if self._rt_session_active and self._rt_loop:
+            print("Quit: Realtime session active")
+            if self._rt_writer_task:
+                asyncio.run_coroutine_threadsafe(
+                    self._cancel_writer_and_close(),
+                    self._rt_loop
+                )
+            time.sleep(0.5)
         if hasattr(self, '_ghk'):
             self._ghk.stop()
+            print("Quit: Global hotkey stopped")
         if hasattr(self, 'executor'):
             self.executor.shutdown(wait=False)
+            print("Quit: Executor shut down")
+        print("Quit: Exiting app")
         QApplication.quit()
+    
+    async def _cancel_writer_and_close(self):
+        if self._rt_writer_task and not self._rt_writer_task.done():
+            self._rt_writer_task.cancel()
+            try:
+                await self._rt_writer_task
+            except asyncio.CancelledError:
+                print("Quit: Writer task cancelled")
+        
+        if self._rt_ws:
+            try:
+                await self._rt_ws.close()
+                print("Quit: WebSocket closed")
+            except Exception as e:
+                print(f"Quit: Error closing WebSocket: {e}")
     
     @Slot(str)
     def _update_status(self, status):
@@ -648,47 +674,119 @@ class TutorTray(QSystemTrayIcon):
         QMessageBox.critical(None, "Error", message)
 
     def on_ask(self):
-        print("UI: Ask button clicked")
+        print(f"[{timestamp()}] UI: Ask button clicked")
+        print(f"UI: Current state - is_recording={self.is_recording}, session_active={self._rt_session_active}, should_send={self._rt_should_send_audio}")
         if not self.auth_manager.is_authenticated():
             self.show_auth_dialog()
             return
         if not self.is_recording:
             self.ask_action.setText("Stop Asking (F9)")
             print("UI: Entering asking mode")
-            self._start_recording()
-            if getattr(self, 'use_realtime', False):
-                self._first_audio_played = False
-                self.update_status.emit("Realtime mode")
-                self.show_notification.emit("Tutor", "", "Asking…")
-                self._rt_future = self.executor.submit(self._run_realtime)
+            if self.use_realtime:
+                self.first_audio_played = False
+                if not self._rt_session_active:
+                    print("UI: Starting new realtime session")
+                    self.update_status.emit("Connecting...")
+                    self.show_notification.emit("Tutor", "", "Connecting...")
+                    self._rt_future = self.executor.submit(self._start_realtime_session)
+                else:
+                    print("UI: Reusing existing realtime session")
+                    self._rt_should_send_audio = True
+                    print(f"UI: Set should_send_audio to {self._rt_should_send_audio}")
+                    self._start_recording_realtime()
             else:
                 self.show_notification.emit("Tutor", "", "Asking…")
+                self._start_recording()
         else:
             self.ask_action.setText("Start Asking (F9)")
             print("UI: Exiting asking mode")
-            if getattr(self, 'use_realtime', False):
-                self._stop_recording_and_process()
-                self.show_notification.emit("Tutor", "", "Thinking...")
-            else:
-                self._stop_recording_and_process()
-                if not getattr(self, 'chat_history', None):
-                    self.executor.submit(self._say_preamble)
+            self._stop_recording_and_process()
 
-    def _say_preamble(self):
-        print("Preamble: Starting")
+    def _start_recording_realtime(self):
+        print("Recording: Start requested (realtime)")
+        if self.is_recording:
+            print("Recording: Already recording; ignoring start")
+            return
+        self._buf.clear()
+        self._frames = 0
+        self._rt_should_send_audio = True
+        self._stream = sd.InputStream(
+            samplerate=SR_REALTIME,
+            channels=1,
+            dtype="float32",
+            blocksize=int(SR_REALTIME * FRAME_MS / 1000),
+            callback=self._audio_cb
+        )
+        self._stream.start()
+        self.is_recording = True
+        self.update_status.emit("Recording")
+        self.show_notification.emit("Tutor", "", "Asking…")
+        print("Recording: Started (realtime)")
+
+    def _start_realtime_session(self):
+        print("Realtime: Starting session in worker thread")
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        self._rt_loop = loop
         try:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            audio = loop.run_until_complete(self._tts("Hmm, let me think."))
-            self.play_audio(audio, wait=False, emit_start=False)
+            loop.run_until_complete(self._realtime_session_async())
         except Exception as e:
-            print(f"Preamble: TTS error: {e}")
+            print(f"Realtime: Session error: {e}")
+            self.show_error.emit(f"Realtime error: {e}")
         finally:
-            try:
-                loop.close()
-            except Exception as _:
-                pass
+            loop.close()
+            self._rt_loop = None
+            self._rt_ws = None
+            print("Realtime: Session ended")
 
+    def _finalize_realtime(self, screenshot):
+        print(f"[{timestamp()}] Realtime: Finalizing with OCR")
+        self._rt_should_send_audio = False
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            if APPLE_OCR:
+                ocr_text = loop.run_until_complete(self._apple_ocr(screenshot))
+            else:
+                ocr_text = loop.run_until_complete(self._ocr(screenshot))
+            print(f"[{timestamp()}] Realtime: OCR completed, {len(ocr_text)} chars")
+            # Signal the realtime session to add OCR and request response
+            if self._rt_loop and self._rt_ws:
+                asyncio.run_coroutine_threadsafe(
+                    self._send_ocr_and_respond(ocr_text),
+                    self._rt_loop
+                )
+        except Exception as e:
+            print(f"Realtime: Finalize error: {e}")
+        finally:
+            loop.close()
+
+    async def _send_ocr_and_respond(self, ocr_text):
+        if not self._rt_ws:
+            return
+        
+        print(f"[{timestamp()}] Realtime: Sending OCR text and requesting response")
+        
+        if ocr_text and ocr_text.strip():
+            await self._rt_ws.send(json.dumps({
+                "type": "conversation.item.create",
+                "item": {
+                    "type": "message",
+                    "role": "user",
+                    "content": [{
+                        "type": "input_text",
+                        "text": f"Screen content:\n{ocr_text}"
+                    }]
+                }
+            }))
+        
+        await self._rt_ws.send(json.dumps({
+            "type": "input_audio_buffer.commit"
+        }))
+        await self._rt_ws.send(json.dumps({
+            "type": "response.create"
+        }))
+        print(f"[{timestamp()}] Realtime: Response requested")
 
     def _audio_cb(self, indata, frames, t, status):
         if status:
@@ -707,33 +805,23 @@ class TutorTray(QSystemTrayIcon):
             self._last_cb_log = now
             #print(f"[cb] frames+={frames}, total={self._frames}, rms={rms:.5f}")
 
-    '''async def _stt(self, recording):
-        print("STT: Starting transcription")
-        recording.seek(0)
-        result = await self.openai_client.audio.transcriptions.create(
-            model="gpt-4o-mini-transcribe",
-            file=recording
-        )
-        print("STT: Transcription finished")
-        return result.text'''
-
     async def _ocr(self, screenshot):
-        print("OCR: Starting request")
+        print(f"[{timestamp()}] OCR: Starting request")
         try:
             img = Image.open(io.BytesIO(screenshot))
             text = pytesseract.image_to_string(img)
-            print(f"OCR: Extracted {len(text)} characters")
+            print(f"[{timestamp()}] OCR: Extracted {len(text)} characters")
             return text.strip()
         except Exception as e:
             print(f"OCR: Error occurred: {e}")
             return f"OCR: Error occurred: {e}"
 
-    '''async def _apple_ocr(self, screenshot):
+    async def _apple_ocr(self, screenshot):
         with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp:
             tmp.write(screenshot)
             tmp_path = tmp.name
         try:
-            url = NSURL.fileURLWithPath(tmp_path)
+            url = NSURL.fileURLWithPath_(tmp_path)
             request = VNRecognizeTextRequest.alloc().init()
             request.setRecognitionLevel_(VNRequestTextRecognitionLevelAccurate)
             request.setUsesLanguageCorrection_(True)
@@ -755,164 +843,243 @@ class TutorTray(QSystemTrayIcon):
             try:
                 os.unlink(tmp_path)
             except Exception:
-                pass'''
+                pass
 
+    async def _track_realtime_usage(self, usage):
+        try:
+            if not usage:
+                print("Realtime: No usage data to track")
+                return
+            total_input = usage.get("input_tokens", 0)
+            total_output = usage.get("output_tokens", 0)
+            
+            input_details = usage.get("input_token_details", {})
+            output_details = usage.get("output_token_details", {})
+            
+            audio_input_tokens = input_details.get("audio_tokens", 0)
+            audio_output_tokens = output_details.get("audio_tokens", 0)
+            
+            text_input_tokens = total_input - audio_input_tokens
+            text_output_tokens = total_output - audio_output_tokens
 
+            text_input_cost = (text_input_tokens / 1_000_000) * 4
+            text_output_cost = (text_output_tokens / 1_000_000) * 16
+            audio_input_cost = (audio_input_tokens / 1_000_000) * 32
+            audio_output_cost = (audio_output_tokens / 1_000_000) * 64
+
+            total_cost = text_input_cost + text_output_cost + audio_input_cost + audio_output_cost
+
+            print(f"Realtime: Usage - Text in: {text_input_tokens}tok (${text_input_cost:.4f}), "
+            f"Text out: {text_output_tokens}tok (${text_output_cost:.4f}), "
+            f"Audio in: {audio_input_tokens}tok (${audio_input_cost:.4f}), "
+            f"Audio out: {audio_output_tokens}tok (${audio_output_cost:.4f}) - "
+            f"Total: ${total_cost:.4f}")
+
+            await self.auth_manager.increment_usage(
+                text_input_tokens=text_input_tokens,
+                text_output_tokens=text_output_tokens,
+                audio_input_tokens=audio_input_tokens,
+                audio_output_tokens=audio_output_tokens
+            )
         
-    '''async def _llm(self, combined_prompt):
-        print("Claude: Starting request")
-        prior = list(self.chat_history)
-        messages = prior + [
-            {
-                'role': 'user',
-                'content': [
-                    {'type': 'text', 'text': combined_prompt}
-                ]
-            }
-        ]
-        print(f"Messages: {messages}")
-        async with self.anthropic_client.messages.stream(
-            model="claude-opus-4-1-20250805",
-            max_tokens=500,
-            messages=messages,
-            system=SYSTEM_PROMPT
-        ) as stream:
-            async for chunk in stream.text_stream:
-                yield chunk'''
-
-    '''async def _tts(self, text):
-        print("TTS: Starting synthesis")
-        response = await self.openai_client.audio.speech.create(
-            model="gpt-4o-mini-tts",
-            input=text,
-            voice="alloy",
-            response_format="wav"
-        )
-        print("TTS: Synthesis finished")
-        return response.read()'''
-    
-    async def _realtime_session(self, *, ocr_text: str | None = None):
-        print("Realtime session: Starting")
-        model = "gpt-4o-realtime-preview"
+        except Exception as e:
+            print(f"Realtime: Usage tracking error: {e}")
+         
+    async def _realtime_session_async(self):
+        """Main realtime session - connects, streams audio, receives responses"""
+        
+        print("Realtime: Connecting to WebSocket")
+        #model = "gpt-4o-realtime-preview-2024-12-17"
+        model = "gpt-realtime"
         url = f"wss://api.openai.com/v1/realtime?model={model}"
         headers = [
             ("Authorization", f"Bearer {self.openai_client.api_key}"),
             ("OpenAI-Beta", "realtime=v1")
         ]
-        self.processing = True
-        async with ws_connect(url, headers=headers, open_timeout=15) as ws:
-            session_update = {
-                "type": "session_update",
-                "session": {
-                    "modalities": ["text", "audio"],
-                    "voice": "alloy",
-                    "output_audio_format": "wav",
-                    "input_audio_format": "pcm16",
-                    "turn_detection": {
-                        "type": "server_vad",
-                        "params": {
-                            "mode": "semantic",
-                            "silence_duration_ms": 400
-                        }
-                    },
-                    "input_audio_transcription": {
-                        "model": "gpt-4o-mini-transcribe",
-                        "language": "en"
-                    },
-                    "instructions": SYSTEM_PROMPT
-                }
-            }
-            await ws.send(json.dumps(session_update))
-            if ocr_text:
-                await ws.send(json.dumps({
-                    "type": "conversation.item.create",
-                    "item": {
-                        "type": "message",
-                        "role": "user",
-                        "content": [
-                            {
-                                "type": "input_text",
-                                "text": f"Screen content:\n{ocr_text}"
-                            }
-                        ]
-                    }
-                }))
-            
-            async def reader():
-                current_audio = bytearray()
-                saw_output = False
-                while self.processing:
-                    try:
-                        message = await ws.recv()
-                    except Exception:
-                        break
-                    if isinstance(message, (bytes, bytearray)):
-                        continue
-                    event = json.loads(message)
-                    etype = event.get("type", "")
-                    if etype == "response.created":
-                        self.start_thinking_animation()
-                        self.update_status.emit("Thinking...")
-                    elif etype == "response.text.delta":
-                        saw_output = True
-                    elif etype == "response.audio.delta":
-                        b64 = event.get("delta", "")
-                        if b64:
-                            if not current_audio and not self._first_audio_played:
-                                self._first_audio_played = True
-                                self.audio_started.emit()
-                            current_audio.extend(base64.b64decode(b64))
-                    elif etype == "response.done":
-                        if current_audio:
-                            self.play_audio(current_audio, wait=False)
-                            current_audio = bytearray()
-                        self.stop_thinking_animation()
-                        self.update_status.emit("Ready")
-                        self.processing = False
-                        break
-                    elif etype == "conversation.item.input_audio_transcription.completed":
-                        text = (event.get("transcript") or "").strip()
-                        if text:
-                            print(f"[You]: {text}")
-                    elif etype == "error":
-                        print("Realtime error", event)
+        
+        ssl_context = ssl.create_default_context(cafile=certifi.where())
+        try:
+            async with ws_connect(url, additional_headers=headers, ssl=ssl_context, open_timeout=15) as ws:
+                self._rt_ws = ws
+                self._rt_session_active = True
+                print("Realtime: Connected")
                 
-            async def writer():
-                bytes_per_sample = 2  
-                sent_any = False
-                committed = False
-                while self.processing and self.is_recording:
-                    frames = []
-                    with self._lock:
-                        while self._buf:
-                            block = self._buf.popleft()  
-                            frames.append(block)
-                    if frames:
-                        f = np.concatenate(frames, axis=0).flatten()
-                        pcm16 = np.clip(f * 32767.0, -32768, 32767).astype(np.int16).tobytes()
-                        max_bytes = SR * bytes_per_sample * 0.20  
-                        for i in range(0, len(pcm16), int(max_bytes)):
-                            chunk = pcm16[i:i+int(max_bytes)]
-                            await ws.send(json.dumps({
-                                "type": "input_audio_buffer.append",
-                                "audio": base64.b64encode(chunk).decode("utf-8")
-                            }))
-                            sent_any = True
-                    if not self.is_recording and sent_any and not committed:
-                        await ws.send(json.dumps({"type": "input_audio_buffer.commit"}))
-                        await ws.send(json.dumps({"type": "response.create"}))
-                        committed = True
-                    await asyncio.sleep(0.05)
-            
-            tasks = [asyncio.create_task(reader()), asyncio.create_task(writer())]
-            try:
-                await asyncio.gather(*tasks)
-            finally:
-                for t in tasks:
-                    t.cancel()        
-    
+                # Configure session
+                session_update = {
+                    "type": "session.update",
+                    "session": {
+                        "modalities": ["text", "audio"],
+                        "voice": "alloy",
+                        "input_audio_format": "pcm16",
+                        "output_audio_format": "pcm16",
+                        "input_audio_transcription": {
+                            "model": "whisper-1"
+                        },
+                        "turn_detection": None,  # Manual control
+                        "instructions": SYSTEM_PROMPT
+                    }
+                }
+                await ws.send(json.dumps(session_update))
+                print("Realtime: Session configured")
+                self.realtime_ready.emit()            
+                
+                # Start reader and writer tasks
+                async def reader():
+                    current_audio = bytearray()
+                    user_transcript = ""
+                    assistant_response = ""
+                    turn_number = 0
+                    
+                    while True:
+                        try:
+                            message = await ws.recv()
+                        except Exception as e:
+                            print(f"Realtime: Reader stopped: {e}")
+                            break
+                        
+                        if isinstance(message, (bytes, bytearray)):
+                            continue
+                        
+                        event = json.loads(message)
+                        etype = event.get("type", "")
+                        
+                        if etype == "session.created":
+                            print("Realtime: Session created")
+                        elif etype == "session.updated":
+                            print("Realtime: Session updated")
+                            self.update_status.emit("Recording")
+                        elif etype == "input_audio_buffer.speech_started":
+                            print("Realtime: Speech detected")
+                        elif etype == "input_audio_buffer.committed":
+                            print(f"[{timestamp()}] Realtime: Audio committed")
+                        elif etype == "conversation.item.input_audio_transcription.completed":
+                            transcript = event.get("transcript", "").strip()
+                            if transcript:
+                                user_transcript = transcript
+                                print(f"[{timestamp()}] Realtime: Transcript: {transcript}")
+                        elif etype == "response.created":
+                            print(f"[{timestamp()}] Realtime: Response created")
+                        elif etype == "response.audio.delta":
+                            delta = event.get("delta", "")
+                            if delta:
+                                if not current_audio and not self._first_audio_played:
+                                    self._first_audio_played = True
+                                    self.audio_started.emit()
+                                    print(f"[{timestamp()}] Realtime: First audio chunk received")
+                                current_audio.extend(base64.b64decode(delta))
+                        elif etype == "response.text.delta":
+                            delta = event.get("delta", "")
+                            assistant_response += delta
+                        elif etype == "response.audio.done":
+                            if current_audio:
+                                # Convert PCM16 to WAV for playback
+                                wav_io = io.BytesIO()
+                                with wave.open(wav_io, 'wb') as wf:
+                                    wf.setnchannels(1)
+                                    wf.setsampwidth(2)
+                                    wf.setframerate(24000)
+                                    wf.writeframes(bytes(current_audio))
+                                self.play_audio(wav_io.getvalue(), wait=False)
+                                current_audio = bytearray()
+                        elif etype == "response.done":
+                            turn_number += 1
+                            print(f"Realtime: Response complete, turn {turn_number}")
+                            self.update_status.emit("Ready")
+                            usage = event.get("response", {}).get("usage", {})
+                            if usage:
+                                input_tokens = usage.get("input_tokens", 0)
+                                output_tokens = usage.get("output_tokens", 0)
+                                input_token_details = usage.get("input_token_details", {})
+                                output_token_details = usage.get("output_token_details", {})
+                                
+                                # Audio is counted as tokens too
+                                audio_input_tokens = input_token_details.get("audio_tokens", 0)
+                                audio_output_tokens = output_token_details.get("audio_tokens", 0)
+                                
+                                print(f"Usage - Input: {input_tokens} tokens (audio: {audio_input_tokens}), Output: {output_tokens} tokens (audio: {audio_output_tokens})")
+                            
+                            # Track usage
+                            if user_transcript or assistant_response:
+                                asyncio.create_task(self._track_realtime_usage(
+                                    usage
+                                ))
+                            
+                            # Show notification
+                            self.show_notification.emit(
+                                "Tutor",
+                                f"Q: {user_transcript[:50]}..." if user_transcript else "",
+                                f"A: {assistant_response[:100]}..." if assistant_response else ""
+                            )
+                            user_transcript = ""
+                            assistant_response = ""
+                            current_audio = bytearray()
+                            print(f"Realtime: Ready for next question, turn {turn_number} complete")
+                        elif etype == "rate_limits.updated":
+                            rate_limits = event.get("rate_limits", [])
+                            for limit in rate_limits:
+                                if limit.get("name") == "requests":
+                                    continue
+                                print(f"Rate limit: {limit.get('name')} - {limit.get('remaining')}/{limit.get('limit')}")
+                        elif etype == "error":
+                            print(f"Realtime: Error event: {event}")
+                            self.show_error.emit(f"Realtime error: {event.get('error', {}).get('message', 'Unknown error')}")
+                
+                async def writer():
+                    while True:
+                        if not self._rt_should_send_audio:
+                            await asyncio.sleep(0.05)
+                            continue
+                        # Send audio chunks from buffer
+                        frames = []
+                        with self._lock:
+                            while self._buf:
+                                frames.append(self._buf.popleft())
+                        
+                        if frames:
+                            audio = np.concatenate(frames, axis=0).flatten()
+                            pcm16 = np.clip(audio * 32767, -32768, 32767).astype(np.int16).tobytes()
+                            # Send in chunks
+                            chunk_size = int(SR_REALTIME * 0.1 * 2)  # 100ms chunks
+                            for i in range(0, len(pcm16), chunk_size):
+                                chunk = pcm16[i:i+chunk_size]
+                                try:
+                                    await ws.send(json.dumps({
+                                        "type": "input_audio_buffer.append",
+                                        "audio": base64.b64encode(chunk).decode("utf-8")
+                                    }))
+                                except Exception as e:
+                                    print(f"Realtime: Writer send error: {e}")
+                                    return
+                        await asyncio.sleep(0.05)
+                
+                # Run both tasks
+                reader_task = asyncio.create_task(reader())
+                writer_task = asyncio.create_task(writer())
+                self._rt_writer_task = writer_task
+                print(f"Realtime: Reader and writer tasks started")
+                
+                try:
+                    await asyncio.gather(reader_task, writer_task)
+                except asyncio.CancelledError:
+                    print("Realtime: Tasks cancelled")
+                finally:
+                    print("Realtime: Cleaning up tasks")
+                    reader_task.cancel()
+                    writer_task.cancel()
+                    self._rt_session_active = False
+                    self._rt_writer_task = None
+                    print(f"Realtime: Session active flag set to {self._rt_session_active}")
+        except Exception as e:
+            print(f"Realtime: Session error: {e}")
+            self.show_error.emit(f"Realtime error: {e}")
+        finally:
+            self._rt_ws = None
+            self._rt_session_active = False
+            self._rt_writer_task = None
+            print("Realtime: Session ended")
+
     def play_audio(self, audio_bytes, wait=False, emit_start=True):
-        print("Audio: Preparing playback")
+        print(f"[{timestamp()}] Audio: Preparing playback")
         try:
             if emit_start and not self._first_audio_played:
                 self._first_audio_played = True
@@ -927,7 +1094,7 @@ class TutorTray(QSystemTrayIcon):
             sd.play(audio, fs)
             if wait:
                 sd.wait()
-            print("Audio: Playback started")
+            print(f"[{timestamp()}] Audio: Playback started")
         except Exception as e:
             print(f"Audio playback error: {e}")
     
@@ -967,29 +1134,44 @@ class TutorTray(QSystemTrayIcon):
         return samples[start:end]
 
     def _stop_recording_and_process(self):
-        print("Recording: Stop requested")
+        print(f"[{timestamp()}] Recording: Stop requested")
         if not self.is_recording:
             self.update_status.emit("No recording to process")
             print("Recording: Not recording; nothing to stop")
             return
+        
         try:
             if self._stream:
                 self._stream.stop()
                 self._stream.close()
-                print("Recording: Stream stopped and closed")
+                print(f"[{timestamp()}] Recording: Stream stopped and closed")
         finally:
             self._stream = None
             self.is_recording = False
-
-        #early exit in realtime mode
-        if getattr(self, 'use_realtime', False):
-            self.update_status.emit("Waiting for AI")
+        
+        if self.use_realtime:
+            # Take screenshot and do OCR
+            self.update_status.emit("Taking screenshot")
+            print(f"[{timestamp()}] Screenshot: Capturing screen")
+            try:
+                with mss.mss() as sct:
+                    img = sct.grab(sct.monitors[0])
+                    png_bytes = mss.tools.to_png(img.rgb, img.size)
+                print(f"[{timestamp()}] Screenshot: Captured")
+            except Exception as e:
+                print(f"Screenshot: Error occurred: {e}")
+                png_bytes = b""
+            
+            # Submit OCR + finalization to realtime session
+            self.executor.submit(self._finalize_realtime, png_bytes)
+            self.update_status.emit("Thinking...")
+            self.show_notification.emit("Tutor", "", "Thinking...")
             return
         
-        # Process the audio buffer
+        # Original non-realtime flow below
         with self._lock:
             if self._buf:
-                audio = np.concatenate(list(self._buf), axis=0)   # (N, 1) float32
+                audio = np.concatenate(list(self._buf), axis=0)
             else:
                 audio = np.zeros((0, 1), dtype="float32")
 
@@ -1001,7 +1183,6 @@ class TutorTray(QSystemTrayIcon):
             print("Recording: No audio captured")
             return
         
-        # Convert audio to WAV format
         audio_int16 = np.clip(audio.flatten() * 32767, -32768, 32767).astype(np.int16)
         _thresh = 500
         if not (np.abs(audio_int16) > _thresh).any():
@@ -1009,6 +1190,7 @@ class TutorTray(QSystemTrayIcon):
             self.show_notification.emit("Tutor", "", "No audio above threshold.")
             print("Recording: No audio above threshold")
             return
+        
         trimmed = self._trim_silence(audio_int16, threshold=_thresh)
         print(f"Recording: Trimmed audio from {audio_int16.size} to {trimmed.size} samples")
         wav_io = io.BytesIO()
@@ -1021,37 +1203,25 @@ class TutorTray(QSystemTrayIcon):
         wav_io.name = "tutor-recording.wav"
         print("Recording: WAV prepared")
         
-        # Take screenshot automatically
         self.update_status.emit("Taking screenshot")
         print("Screenshot: Capturing screen")
-        screenshot_path = None
         try:
             with mss.mss() as sct:
                 img = sct.grab(sct.monitors[0])
                 png_bytes = mss.tools.to_png(img.rgb, img.size)
-            if not png_bytes:
-                print("Screenshot: No screenshot captured")
-            else:
-                print("Screenshot: Captured")
+            print("Screenshot: Captured")
         except Exception as e:
             self.show_notification.emit("Tutor", "", "Error capturing screenshot.")
             print(f"Screenshot: Error occurred: {e}")
             png_bytes = b""
 
-        # Now process with AI
         self.processing = True
         self._first_audio_played = False
-        self.start_thinking_animation()
         self.update_status.emit("Processing with AI")
         self.show_notification.emit("Tutor", "", "Processing your question")
         print("Pipeline: Submitting to executor")
         
-        # Run the pipeline
-        future = self.executor.submit(
-            self._run_pipeline, 
-            png_bytes, 
-            wav_io
-        )
+        future = self.executor.submit(self._run_pipeline, png_bytes, wav_io)
         def _emit_result(future):
             try:
                 result = future.result()
@@ -1060,7 +1230,7 @@ class TutorTray(QSystemTrayIcon):
             self.pipeline_complete.emit(result)
         future.add_done_callback(_emit_result)
         print("Pipeline: Future submitted and callback attached")
- 
+    
     async def _async_pipeline(self, screenshot, recording):
         print("Pipeline: Started")
         try:
@@ -1083,7 +1253,10 @@ class TutorTray(QSystemTrayIcon):
                 mins_recording = None
             recording.seek(0)
             stt_task = asyncio.create_task(self._stt(recording))
-            ocr_task = asyncio.create_task(self._ocr(screenshot))
+            if APPLE_OCR:
+                ocr_task = asyncio.create_task(self._apple_ocr(screenshot))
+            else:
+                ocr_task = asyncio.create_task(self._ocr(screenshot))
             transcript, ocr_text = await asyncio.gather(stt_task, ocr_task)
             print("Pipeline: STT and OCRcompleted")
             combined_prompt = f"{transcript}\n\nScreen content:\n{ocr_text}"
@@ -1177,19 +1350,7 @@ class TutorTray(QSystemTrayIcon):
             return {
                 'error': str(e)
             }
-       
-    def _run_realtime(self):
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        try:   
-            with mss.mss() as sct:
-                img = sct.grab(sct.monitors[0])
-                png_bytes = mss.tools.to_png(img.rgb, img.size)
-            ocr_text = loop.run_until_complete(self._ocr(png_bytes))
-            loop.run_until_complete(self._realtime_session(ocr_text=ocr_text))
-        finally:
-            loop.close()
-    
+
     def _run_pipeline(self, screenshot, recording):
         print("Pipeline: Running in worker thread")
         loop = asyncio.new_event_loop()
@@ -1206,7 +1367,6 @@ class TutorTray(QSystemTrayIcon):
 
     def _on_pipeline_complete(self, result):
         print("Pipeline: Completion callback invoked")
-        self.stop_thinking_animation()
         if 'error' in result:
             print(f"Pipeline: Error in result: {result['error']}")
             self.show_error.emit(f"An error occurred: {result['error']}")
@@ -1237,7 +1397,7 @@ def main():
     print("Main: Launching TutorTray app")
     #app = TutorTray()
     app = QApplication(sys.argv)
-    with open("styles/base.qss", "r") as f:
+    with open(asset_path("styles/base.qss"), "r") as f:
         app.setStyleSheet(f.read())
     app.setQuitOnLastWindowClosed(False) #keep running in tray
     try:
