@@ -11,9 +11,8 @@ export default function Header() {
 
   return (
     <>
-    <header className="sticky top-0 z-50 w-full bg-white/70 backdrop-blur">
-      <div className={`mx-auto flex h-14 max-w-6xl items-center justify-between px-4 sm:h-16 sm:px-6  
-        ${isMenuOpen ? "" : "border-b border-gray-100"}`}>
+    <header className="sticky top-0 z-50 w-full bg-slate-200 backdrop-blur">
+      <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4 sm:h-16 sm:px-6">
         <Link href="/" className="text-2xl font-semibold tracking-tight text-gray-900">Scaffold</Link>
 
         {/* Hamburger menu button, only visible on mobile and tablet */}
@@ -71,6 +70,13 @@ export default function Header() {
               >
                 Contact
               </Link>
+              <Link 
+                href="../subscribe" 
+                className="block text-gray-900 hover:text-gray-600 hover:bg-gray-50 transition-all text-lg py-3 px-2 rounded-md"
+                onClick={toggleMenu}
+              >
+              Subscribe
+            </Link>
             </nav>
           </div>
         </div>
