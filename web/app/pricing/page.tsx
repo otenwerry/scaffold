@@ -98,7 +98,10 @@ export default function PricingPage() {
       </div>
 
       {!success && !canceled && (
-        <SubscribeButton lookupKey={process.env.NEXT_PUBLIC_STRIPE_PRICE_LOOKUP_KEY} />
+        <SubscribeButton 
+          lookupKey={process.env.NEXT_PUBLIC_STRIPE_PRICE_LOOKUP_KEY}
+          priceId="price_1SDzKyLsDCj5bzxFgdgeKsMv"
+        />
       )}
 
       {success && sessionId && (
