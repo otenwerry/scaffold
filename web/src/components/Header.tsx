@@ -1,13 +1,32 @@
 "use client";
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 export default function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isScrolled, setIsScrolled] = useState(false);
+  const [lastScrollY, setLastScrollY] = useState(0);
 
   const toggleMenu = () => {
     setIsMenuOpen(!isMenuOpen);
   };
+
+  useEffect(() => {
+    const handleScroll = () => {
+      const currentScrollY = window.scrollY;
+      
+      if (currentScrollY > 100) {
+        setIsScrolled(true);
+      } else {
+        setIsScrolled(false);
+      }
+      
+      setLastScrollY(currentScrollY);
+    };
+
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, [lastScrollY]);
 
   return (
     <>
@@ -74,23 +93,31 @@ export default function Header() {
       </header>
 
       {/* Desktop Header - Liquid glass component */}
-      <header className="hidden md:block sticky w-full pt-10">
-        <div className="flex justify-center">
-          <div className="liquid-glass-header w-[80%] h-20 flex items-center justify-between px-12 py-6">
-          <Link href="/" className="glass-text text-2xl font-semibold tracking-tight">Scaffold</Link>
-          
-          {/* Desktop navigation */}
-          <nav className="flex items-center gap-8">
-            <Link href="../about" className="glass-text text-lg hover:opacity-80 transition-opacity">
-              About
+      <header className="hidden md:block sticky top-0 w-full z-50 transition-all duration-300 ease-in-out">
+        <div className={`flex transition-all duration-300 ease-in-out justify-center pt-10`}>
+          <div className={`liquid-glass-header transition-all duration-300 ease-in-out ${
+            isScrolled 
+              ? 'w-[200px] h-20 px-12 py-6' 
+              : 'w-[80%] h-20 px-12 py-6'
+          } flex items-center ${isScrolled ? 'justify-start' : 'justify-between'}`}>
+            <Link href="/" className={`glass-text font-semibold tracking-tight transition-all duration-300 text-2xl`}>
+              Scaffold
             </Link>
-            <Link href="../contact" className="glass-text text-lg hover:opacity-80 transition-opacity">
-              Contact
-            </Link>
-            <Link href="../subscribe" className="glass-text text-lg hover:opacity-80 transition-opacity">
-              Subscribe
-            </Link>
-          </nav>
+            
+            {/* Desktop navigation - only show when not scrolled */}
+            {!isScrolled && (
+              <nav className="flex items-center gap-8">
+                <Link href="../about" className="glass-text text-lg hover:opacity-80 transition-opacity">
+                  About
+                </Link>
+                <Link href="../contact" className="glass-text text-lg hover:opacity-80 transition-opacity">
+                  Contact
+                </Link>
+                <Link href="../subscribe" className="glass-text text-lg hover:opacity-80 transition-opacity">
+                  Subscribe
+                </Link>
+              </nav>
+            )}
           </div>
         </div>
       </header>
