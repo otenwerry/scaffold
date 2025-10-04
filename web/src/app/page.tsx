@@ -14,12 +14,12 @@ export default function Home() {
       
       <main className="relative z-10 flex flex-col items-center justify-center min-h-[calc(100vh-4rem)] px-4">
         <div className="text-center space-y-8 max-w-4xl mx-auto">
-          <h1 className="text-6xl md:text-8xl font-bold text-white glow-text leading-tight">
+          <h1 className="text-6xl md:text-8xl font-bold text-white leading-tight">
             Scaffold
           </h1>
 
           <p className="text-xl md:text-2xl text-blue-200 max-w-2xl mx-auto leading-relaxed">
-            Your personal AI-powered teacher!
+            Voice-based, context-aware AI tutor.
           </p>
           
           <div className="space-y-6 pt-8">
