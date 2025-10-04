@@ -292,7 +292,8 @@ class AuthManager:
         text_input_tokens: int = 0,
         text_output_tokens: int = 0,
         audio_input_tokens: int = 0,
-        audio_output_tokens: int = 0
+        audio_output_tokens: int = 0,
+        total_cost: float = 0.0
     ) -> dict | None:
         if not self.user:
             raise RuntimeError("User not authenticated")
@@ -300,7 +301,8 @@ class AuthManager:
             'p_text_input_tokens': text_input_tokens,
             'p_text_output_tokens': text_output_tokens,
             'p_audio_input_tokens': audio_input_tokens,
-            'p_audio_output_tokens': audio_output_tokens
+            'p_audio_output_tokens': audio_output_tokens,
+            'p_total_cost': total_cost
         }
         try:
             response = self.supabase.rpc('rpc_track_usage', params).execute()
@@ -874,7 +876,8 @@ class TutorTray(QSystemTrayIcon):
                 text_input_tokens=text_input_tokens,
                 text_output_tokens=text_output_tokens,
                 audio_input_tokens=audio_input_tokens,
-                audio_output_tokens=audio_output_tokens
+                audio_output_tokens=audio_output_tokens,
+                total_cost=total_cost
             )
         
         except Exception as e:
