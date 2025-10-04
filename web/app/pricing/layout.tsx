@@ -1,4 +1,6 @@
+import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -10,14 +12,14 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-export default function PricingLayout({
-    children,
+export default function AboutLayout({
+  children,
 }: Readonly<{
-    children: React.ReactNode;
+  children: React.ReactNode;
 }>) {
-    return (
-        <div className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
-            {children}
-        </div>
-    );
+  return (
+    <div className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+      {children}
+    </div>
+  );
 }

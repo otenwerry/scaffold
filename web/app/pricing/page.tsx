@@ -1,7 +1,9 @@
 "use client";
 
+import Header from "../components/Header";
 import { useSearchParams } from "next/navigation";
 import { useState } from "react";
+
 
 function Logo() {
   return (
@@ -88,37 +90,17 @@ export default function PricingPage() {
   const sessionId = qp.get("session_id");
 
   return (
-    <section className="max-w-xl mx-auto p-6 grid gap-4">
-      <div className="flex items-center gap-3">
-        <Logo />
-        <div>
-          <h3 className="text-lg font-semibold">Starter Plan</h3>
-          <p className="text-sm opacity-70">$20.00 / month</p>
-        </div>
-      </div>
-
-      {!success && !canceled && (
-        <SubscribeButton 
-          lookupKey={process.env.NEXT_PUBLIC_STRIPE_PRICE_LOOKUP_KEY}
-          priceId="price_1SDzKyLsDCj5bzxFgdgeKsMv"
-        />
-      )}
-
-      {success && sessionId && (
-        <div className="rounded-xl p-4 bg-green-50">
-          <p className="font-medium">Subscription successful!</p>
-          <p className="text-sm opacity-70">Session: {sessionId}</p>
-          <div className="mt-3">
-            <PortalButton />
-          </div>
-        </div>
-      )}
-
-      {canceled && (
-        <p className="rounded-xl p-4 bg-yellow-50">
-          Order canceled — try again anytime.
-        </p>
-      )}
-    </section>
+    <div className="flex flex-col items-center justify-center">
+    <Header />
+    <script async src="https://js.stripe.com/v3/pricing-table.js"></script>
+    <div 
+      dangerouslySetInnerHTML={{
+        __html: `<stripe-pricing-table 
+          pricing-table-id="prctbl_1SEKUNLsDCj5bzxFnPy8MS31"
+          publishable-key="pk_test_51SDdSxLsDCj5bzxF3VNe8j0dq7K5CSV1Yil436bRRDV68jSTOWPNbfrTZLzR6vmuGfOR3aqhglEPxcaD1D1kQORL00BI4icUH8">
+        </stripe-pricing-table>`
+      }}
+    />
+    </div>
   );
 }
