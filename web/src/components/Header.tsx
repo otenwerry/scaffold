@@ -47,6 +47,9 @@ export default function Header() {
           <Link href="../contact" className="text-lg text-gray-600 hover:text-gray-900 transition-colors">
             Contact
           </Link>
+          <Link href="../subscribe" className="text-lg text-gray-600 hover:text-gray-900 transition-colors">
+            Subscribe
+          </Link>
         </nav>
       </div>
       <div className={`md:hidden absolute top-full left-0 right-0 overflow-hidden transition-all duration-300${
