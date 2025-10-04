@@ -97,12 +97,14 @@ export default function Header() {
         <div className={`flex transition-all duration-300 ease-in-out justify-center pt-10`}>
           <div className={`liquid-glass-header transition-all duration-300 ease-in-out ${
             isScrolled 
-              ? 'w-[200px] h-20 px-12 py-6' 
+              ? 'w-[60px] h-2 px-2 py-1' 
               : 'w-[80%] h-20 px-12 py-6'
-          } flex items-center ${isScrolled ? 'justify-start' : 'justify-between'}`}>
-            <Link href="/" className={`glass-text font-semibold tracking-tight transition-all duration-300 text-2xl`}>
-              Scaffold
-            </Link>
+          } flex items-center ${isScrolled ? 'justify-center' : 'justify-between'}`}>
+            {!isScrolled && (
+              <Link href="/" className="glass-text font-semibold tracking-tight transition-all duration-300 text-2xl">
+                Scaffold
+              </Link>
+            )}
             
             {/* Desktop navigation - only show when not scrolled */}
             {!isScrolled && (
