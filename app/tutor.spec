@@ -6,6 +6,7 @@ datas = [
         ('logos/blue2.png', 'logos'),
         ('logos/blue3.png', 'logos'),
         ('system_prompt.txt', '.'),
+        ('styles/base.qss', 'styles'),
     ]
 
 if os.path.exists("/usr/local/bin/tesseract"):
