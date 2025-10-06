@@ -33,7 +33,7 @@ export default function Home() {
             </Button>
             
             <p className="text-sm text-blue-300 max-w-md mx-auto">
-              First time? After installing, right-click the app and choose "Open".
+              First time? After installing, right-click the app and choose &quot;Open&quot;.
             </p>
           </div>
         </div>
