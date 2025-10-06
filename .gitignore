@@ -3,6 +3,8 @@ venv/
 .venv/
 
 .DS_Store
+app/.DS_Store
+web/.DS_Store
 
 build/
 build
