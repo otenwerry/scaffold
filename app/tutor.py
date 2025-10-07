@@ -26,7 +26,6 @@ import wave, threading, time, base64, io, tempfile
 import mss
 import asyncio
 from openai import AsyncOpenAI
-from anthropic import AsyncAnthropic
 from concurrent.futures import ThreadPoolExecutor
 from pynput import keyboard as pk
 from PIL import Image
@@ -51,15 +50,13 @@ from supabase import create_client, Client
 import json
 import keyring
 
-SR = 16000
-SR_REALTIME = 24000
+SR = 24000
 FRAME_MS = 20 
 BLOCKSIZE = int(SR * FRAME_MS / 1000) 
 RING_SECONDS = 60 #60 seconds of audio to buffer
 SYSTEM_PROMPT = ""
 SUPABASE_URL = "https://giohlugbdruxxlgzdtlj.supabase.co"
 SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdpb2hsdWdiZHJ1eHhsZ3pkdGxqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY0MTY4MzUsImV4cCI6MjA3MTk5MjgzNX0.wJVWrwyo3RLPyrM4D0867GhjenY1Z-lwaZFN4GUQloM"
-REALTIME_ONLY = True
 APPLE_OCR = True
 
 def asset_path(name: str) -> str:
@@ -320,9 +317,7 @@ class TutorTray(QSystemTrayIcon):
     update_status = Signal(str)
     toggle_ask = Signal()
     show_error = Signal(str)
-    pipeline_complete = Signal(dict)
     audio_started = Signal()
-    auth_required = Signal()
     realtime_ready = Signal()
     def __init__(self, app):
         super().__init__()
@@ -334,13 +329,10 @@ class TutorTray(QSystemTrayIcon):
         self.setup_api_client()
         self.setup_tesseract()
         self.is_recording = False
-        #self._buf = [] # audio buffer
         self._buf = deque(maxlen=(RING_SECONDS * SR) // BLOCKSIZE) 
         self._lock = threading.Lock() # lock for buffer
         self._stream = None # audio stream   
-        self.chat_history = deque(maxlen=4) #2 user, 2 assistant
         self.show_notification.connect(self._show_notification, Qt.ConnectionType.QueuedConnection)
-        self.use_realtime = REALTIME_ONLY
         self._rt_future = None
         self._rt_ws = None
         self._rt_loop = None
@@ -348,13 +340,8 @@ class TutorTray(QSystemTrayIcon):
         self._rt_session_active = False
         self._rt_writer_task = None
         self._rt_should_send_audio = False  
-        #debug state
-        self._last_rms = 0.0
-        self._frames = 0
-        self._last_cb_log = 0.0
  
         #pipeline state
-        self.processing = False 
         self.executor = ThreadPoolExecutor(max_workers=2)
 
         self.create_menu()
@@ -363,7 +350,6 @@ class TutorTray(QSystemTrayIcon):
 
         self.toggle_ask.connect(self.on_ask, Qt.ConnectionType.QueuedConnection)
         self.show_error.connect(self._show_error, Qt.ConnectionType.QueuedConnection)
-        self.pipeline_complete.connect(self._on_pipeline_complete, Qt.ConnectionType.QueuedConnection)
 
         #thinking animation
         self._base_icon = QIcon(asset_path("logos/icon.png"))
@@ -546,17 +532,7 @@ class TutorTray(QSystemTrayIcon):
             else:
                 QMessageBox.critical(None, "Error", "OPENAI_API_KEY is not set")
                 sys.exit(1)
-        anthropic_api_key = os.getenv('ANTHROPIC_API_KEY')
-        if not anthropic_api_key:
-            config_path = os.path.expanduser('~/.tutor_anthropic')
-            if os.path.exists(config_path):
-                with open(config_path, 'r') as f:
-                    anthropic_api_key = f.read().strip()
-            else:
-                QMessageBox.critical(None, "Error", "ANTHROPIC_API_KEY is not set")
-                sys.exit(1)
         self.openai_client = AsyncOpenAI(api_key=openai_api_key)
-        self.anthropic_client = AsyncAnthropic(api_key=anthropic_api_key)
 
     def create_menu(self):
         menu = QMenu()
@@ -679,21 +655,17 @@ class TutorTray(QSystemTrayIcon):
         if not self.is_recording:
             self.ask_action.setText("Stop Asking (F9)")
             print("UI: Entering asking mode")
-            if self.use_realtime:
-                self.first_audio_played = False
-                if not self._rt_session_active:
-                    print("UI: Starting new realtime session")
-                    self.update_status.emit("Connecting...")
-                    self.show_notification.emit("Tutor", "", "Connecting...")
-                    self._rt_future = self.executor.submit(self._start_realtime_session)
-                else:
-                    print("UI: Reusing existing realtime session")
-                    self._rt_should_send_audio = True
-                    print(f"UI: Set should_send_audio to {self._rt_should_send_audio}")
-                    self._start_recording_realtime()
+            self.first_audio_played = False
+            if not self._rt_session_active:
+                print("UI: Starting new realtime session")
+                self.update_status.emit("Connecting...")
+                self.show_notification.emit("Tutor", "", "Connecting...")
+                self._rt_future = self.executor.submit(self._start_realtime_session)
             else:
-                self.show_notification.emit("Tutor", "", "Asking…")
-                self._start_recording()
+                print("UI: Reusing existing realtime session")
+                self._rt_should_send_audio = True
+                print(f"UI: Set should_send_audio to {self._rt_should_send_audio}")
+                self._start_recording_realtime()
         else:
             self.ask_action.setText("Start Asking (F9)")
             print("UI: Exiting asking mode")
@@ -705,13 +677,12 @@ class TutorTray(QSystemTrayIcon):
             print("Recording: Already recording; ignoring start")
             return
         self._buf.clear()
-        self._frames = 0
         self._rt_should_send_audio = True
         self._stream = sd.InputStream(
-            samplerate=SR_REALTIME,
+            samplerate=SR,
             channels=1,
             dtype="float32",
-            blocksize=int(SR_REALTIME * FRAME_MS / 1000),
+            blocksize=int(SR * FRAME_MS / 1000),
             callback=self._audio_cb
         )
         self._stream.start()
@@ -788,19 +759,8 @@ class TutorTray(QSystemTrayIcon):
     def _audio_cb(self, indata, frames, t, status):
         if status:
             print("Audio status:", status)
-        # compute simple RMS for debug
-        rms = float(np.sqrt(np.mean(indata.astype(np.float32)**2))) if frames else 0.0
-        self._last_rms = rms
-        self._frames += frames
-
         with self._lock:
             self._buf.append(indata.copy())
-        
-        # throttle terminal logs to ~1/sec
-        now = time.time()
-        if now - self._last_cb_log > 1.0:
-            self._last_cb_log = now
-            #print(f"[cb] frames+={frames}, total={self._frames}, rms={rms:.5f}")
 
     async def _ocr(self, screenshot):
         print(f"[{timestamp()}] OCR: Starting request")
@@ -1037,7 +997,7 @@ class TutorTray(QSystemTrayIcon):
                             audio = np.concatenate(frames, axis=0).flatten()
                             pcm16 = np.clip(audio * 32767, -32768, 32767).astype(np.int16).tobytes()
                             # Send in chunks
-                            chunk_size = int(SR_REALTIME * 0.1 * 2)  # 100ms chunks
+                            chunk_size = int(SR * 0.1 * 2)  # 100ms chunks
                             for i in range(0, len(pcm16), chunk_size):
                                 chunk = pcm16[i:i+chunk_size]
                                 try:
@@ -1095,41 +1055,6 @@ class TutorTray(QSystemTrayIcon):
             print(f"[{timestamp()}] Audio: Playback started")
         except Exception as e:
             print(f"Audio playback error: {e}")
-    
-    def _start_recording(self):
-        print("Recording: Start requested")
-        if self.is_recording:
-            print("Recording: Already recording; ignoring start")
-            return
-        self._buf.clear()
-        self._frames = 0
-        self._stream = sd.InputStream(
-            samplerate=SR,
-            channels=1,
-            dtype="float32",
-            blocksize=BLOCKSIZE,     # 20 ms blocks
-            callback=self._audio_cb
-        )
-        """
-        self._stream = sd.InputStream(
-            samplerate=SR, 
-            channels=1, 
-            dtype="float32", 
-            callback=self._audio_cb
-        )"""
-        self._stream.start()
-        self.is_recording = True
-        self.update_status.emit("Recording")
-        print("Recording: Started")
-
-    def _trim_silence(self, samples, threshold=500, pad_start=0.02, pad_end=0.10):
-        a = np.abs(samples.astype(np.int16))
-        nz = np.where(a > threshold)[0]
-        if len(nz) == 0:
-            return samples
-        start = max(nz[0] - int(pad_start * SR), 0)
-        end = min(nz[-1] + int(pad_end * SR), len(samples))
-        return samples[start:end]
 
     def _stop_recording_and_process(self):
         print(f"[{timestamp()}] Recording: Stop requested")
@@ -1147,248 +1072,23 @@ class TutorTray(QSystemTrayIcon):
             self._stream = None
             self.is_recording = False
         
-        if self.use_realtime:
-            # Take screenshot and do OCR
-            self.update_status.emit("Taking screenshot")
-            print(f"[{timestamp()}] Screenshot: Capturing screen")
-            try:
-                with mss.mss() as sct:
-                    img = sct.grab(sct.monitors[0])
-                    png_bytes = mss.tools.to_png(img.rgb, img.size)
-                print(f"[{timestamp()}] Screenshot: Captured")
-            except Exception as e:
-                print(f"Screenshot: Error occurred: {e}")
-                png_bytes = b""
-            
-            # Submit OCR + finalization to realtime session
-            self.executor.submit(self._finalize_realtime, png_bytes)
-            self.update_status.emit("Thinking...")
-            self.show_notification.emit("Tutor", "", "Thinking...")
-            return
-        
-        # Original non-realtime flow below
-        with self._lock:
-            if self._buf:
-                audio = np.concatenate(list(self._buf), axis=0)
-            else:
-                audio = np.zeros((0, 1), dtype="float32")
-
-        print(f"Recording: Captured frames={self._frames}, samples={audio.size}")
-        
-        if audio.size == 0:
-            self.update_status.emit("No audio captured")
-            self.show_notification.emit("Tutor", "", "No audio captured.")
-            print("Recording: No audio captured")
-            return
-        
-        audio_int16 = np.clip(audio.flatten() * 32767, -32768, 32767).astype(np.int16)
-        _thresh = 500
-        if not (np.abs(audio_int16) > _thresh).any():
-            self.update_status.emit("No audio above threshold")
-            self.show_notification.emit("Tutor", "", "No audio above threshold.")
-            print("Recording: No audio above threshold")
-            return
-        
-        trimmed = self._trim_silence(audio_int16, threshold=_thresh)
-        print(f"Recording: Trimmed audio from {audio_int16.size} to {trimmed.size} samples")
-        wav_io = io.BytesIO()
-        with wave.open(wav_io, "wb") as wf:
-            wf.setnchannels(1)
-            wf.setsampwidth(2)
-            wf.setframerate(SR)
-            wf.writeframes(trimmed.tobytes())
-        wav_io.seek(0)
-        wav_io.name = "tutor-recording.wav"
-        print("Recording: WAV prepared")
-        
+        # Take screenshot and do OCR
         self.update_status.emit("Taking screenshot")
-        print("Screenshot: Capturing screen")
+        print(f"[{timestamp()}] Screenshot: Capturing screen")
         try:
             with mss.mss() as sct:
                 img = sct.grab(sct.monitors[0])
                 png_bytes = mss.tools.to_png(img.rgb, img.size)
-            print("Screenshot: Captured")
+            print(f"[{timestamp()}] Screenshot: Captured")
         except Exception as e:
-            self.show_notification.emit("Tutor", "", "Error capturing screenshot.")
             print(f"Screenshot: Error occurred: {e}")
             png_bytes = b""
-
-        self.processing = True
-        self._first_audio_played = False
-        self.update_status.emit("Processing with AI")
-        self.show_notification.emit("Tutor", "", "Processing your question")
-        print("Pipeline: Submitting to executor")
         
-        future = self.executor.submit(self._run_pipeline, png_bytes, wav_io)
-        def _emit_result(future):
-            try:
-                result = future.result()
-            except Exception as e:
-                result = {'error': str(e)}
-            self.pipeline_complete.emit(result)
-        future.add_done_callback(_emit_result)
-        print("Pipeline: Future submitted and callback attached")
-    
-    async def _async_pipeline(self, screenshot, recording):
-        print("Pipeline: Started")
-        try:
-            preflight = await self.auth_manager.increment_usage()
-            if not preflight or not preflight.get('success', False):
-                msg = "Quota exceeded, please subscribe at URL"
-                print(f"{msg}")
-                return {"error": msg}
-            tier = preflight.get('tier')
-            rec_bytes = recording.getvalue()
-            try:
-                import wave as _wave
-                with _wave.open(io.BytesIO(rec_bytes), "rb") as wf:
-                    frames = wf.getnframes()
-                    rate = wf.getframerate() or SR
-                    seconds = frames / float(rate) if rate else 0.0
-                mins_recording = seconds / 60.0
-            except Exception as _e:
-                print(f"Pipeline: Could not read WAV duration: {_e}")
-                mins_recording = None
-            recording.seek(0)
-            stt_task = asyncio.create_task(self._stt(recording))
-            if APPLE_OCR:
-                ocr_task = asyncio.create_task(self._apple_ocr(screenshot))
-            else:
-                ocr_task = asyncio.create_task(self._ocr(screenshot))
-            transcript, ocr_text = await asyncio.gather(stt_task, ocr_task)
-            print("Pipeline: STT and OCRcompleted")
-            combined_prompt = f"{transcript}\n\nScreen content:\n{ocr_text}"
-            response = ""
-            sentence_buf = ""
-
-            q = asyncio.Queue()
-            async def speaker():
-                loop = asyncio.get_running_loop()
-                next_task = None
-                while True:
-                    s = await q.get()
-                    if s is None:
-                        q.task_done()
-                        break
-                    s = s.strip()
-                    if not s:
-                        q.task_done()
-                        continue
-                    if next_task is None:
-                        next_task = asyncio.create_task(self._tts(s))
-                        q.task_done()
-                        continue
-                    curr_task = asyncio.create_task(self._tts(s))
-                    audio_prev = await next_task
-                    await loop.run_in_executor(None, lambda: self.play_audio(audio_prev, wait=True))
-                    next_task = curr_task
-                    q.task_done()
-                if next_task:
-                    audio_last = await next_task
-                    await loop.run_in_executor(None, lambda: self.play_audio(audio_last, wait=True))
-            
-            spk_task = asyncio.create_task(speaker())
-            
-            print("Pipeline: LLM streaming started")
-            async for chunk in self._llm(combined_prompt):
-                response += chunk
-                sentence_buf += chunk
-                if any(sentence_buf.endswith(p) for p in [".", "?", "!"]):
-                    await q.put(sentence_buf)
-                    sentence_buf = ""
-            #flush remainder
-            if sentence_buf.strip():
-                await q.put(sentence_buf)
-            await q.put(None) 
-            await spk_task
-            print("Pipeline: LLM streaming completed")
-            print("Pipeline: TTS completed")
-
-            #finalize usage for subscribers
-            if preflight.get('success'):
-                input_words = len(combined_prompt.split())
-                output_words = len(response.split())
-                finalize = await self.auth_manager.increment_usage(
-                    mins_recording=mins_recording,
-                    input_words=input_words,
-                    output_words=output_words
-                )
-                print(f"{mins_recording} mins recording, {input_words} input words, {output_words} output words")
-                if not finalize or not finalize.get("success", False):
-                    # If this happens, we didn't update usage due to cap; you've already done the work,
-                    # but at least we surface it.
-                    print("Pipeline: Metered finalize denied (cap reached mid-request).")
-
-            
-            #add the response to the chat history
-            try:
-                self.chat_history.append({
-                    'role': 'user',
-                    'content': [
-                        {'type': 'text', 'text': combined_prompt}
-                    ]
-                })
-                self.chat_history.append({
-                    'role': 'assistant',
-                    'content': [
-                        {'type': 'text', 'text': response}
-                    ]
-                })
-            except Exception as e:
-                print(f"Pipeline: Error adding to chat history: {e}")
-            
-            return {
-                'transcript': transcript,
-                'ocr_text': ocr_text,
-                'response': response,
-                'audio_response': None
-            }
-        except Exception as e:
-            print(f"Pipeline: Error occurred: {e}")
-            return {
-                'error': str(e)
-            }
-
-    def _run_pipeline(self, screenshot, recording):
-        print("Pipeline: Running in worker thread")
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        try:
-            result = loop.run_until_complete(
-                self._async_pipeline(screenshot, recording)
-            )
-            print("Pipeline: Worker thread completed")
-            return result
-        finally:
-            loop.close()
-            print("Pipeline: Event loop closed")
-
-    def _on_pipeline_complete(self, result):
-        print("Pipeline: Completion callback invoked")
-        if 'error' in result:
-            print(f"Pipeline: Error in result: {result['error']}")
-            self.show_error.emit(f"An error occurred: {result['error']}")
-            self.update_status.emit("Error")
-            self.processing = False
-            return
-        
-        print("Audio played inline via sentence level TTS")
-        transcript = result['transcript']
-        response = result['response']
-        ocr_text = result['ocr_text']
-        self.show_notification.emit(
-            "Tutor",
-            f"Q: {transcript[:50]}...",
-            f"A: {response[:100]}..."
-        )
-        if ocr_text:
-            trimmed = (ocr_text[:100] + "...") if len(ocr_text) > 100 else ocr_text
-            print(f"OCR result: {trimmed}")
-        else:
-            print("OCR result: No OCR result")
-        self.update_status.emit("Ready")
-        self.processing = False
-        print("Pipeline: Completed successfully")
+        # Submit OCR + finalization to realtime session
+        self.executor.submit(self._finalize_realtime, png_bytes)
+        self.update_status.emit("Thinking...")
+        self.show_notification.emit("Tutor", "", "Thinking...")
+        return
 
 def main():
     global SYSTEM_PROMPT
