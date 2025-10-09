@@ -1,8 +1,10 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3'
+import WebSocket from 'npm:ws'
 
 const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY')
 const SUPABASE_URL = Deno.env.get('URL')!
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SERVICE_ROLE_KEY')!
+const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY')!
 const MAX_SESSION_DURATION_MS = 5 * 60 * 1000 // 5 minutes
 
 interface UsageData {
@@ -37,8 +39,17 @@ Deno.serve(async (req) => {
   const token = authHeader.substring(7)
 
   // Verify user with Supabase
-  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
-  const { data: { user }, error: authError } = await supabase.auth.getUser(token)
+  const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
+  const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token)
+  // User client for RPC calls
+const supabaseUser = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    global: {
+        headers: {
+            'Authorization': `Bearer ${token}`
+        }
+    }
+})
+const appDB = supabaseUser.schema('app')
 
   if (authError || !user) {
     console.error('Auth failed:', authError?.message)
@@ -48,14 +59,19 @@ Deno.serve(async (req) => {
   console.log(`User authenticated: ${user.id}`)
 
   // Check quota
-  const { data: quotaData, error: quotaError } = await supabase.rpc('rpc_check_quota')
+  const { data: quotaData, error: quotaError } = await appDB.rpc('rpc_check_quota')
 
   if (quotaError) {
     console.error('Quota check failed:', quotaError.message)
     return new Response('Quota check failed', { status: 500 })
   }
 
-  const [allowed, used, remaining, limit] = quotaData[0] || []
+  const row = quotaData?.[0]
+  if (!row) {
+    console.error('Quota check returned no rows')
+    return new Response('Quota check failed', { status: 500 })
+  }
+  const { allowed, used, remaining, limit } = row
   console.log(`Quota check: allowed=${allowed}, used=${used}, remaining=${remaining}, limit=${limit}`)
 
   if (!allowed) {
@@ -103,7 +119,7 @@ Deno.serve(async (req) => {
     console.log(`Usage: text_in=${textInputTokens}, text_out=${textOutputTokens}, audio_in=${audioInputTokens}, audio_out=${audioOutputTokens}, cost=$${totalCost.toFixed(4)}`)
 
     try {
-      const { data, error } = await supabase.rpc('rpc_track_usage', {
+      const { data, error } = await appDB.rpc('rpc_track_usage', {
         p_text_input_tokens: textInputTokens,
         p_text_output_tokens: textOutputTokens,
         p_audio_input_tokens: audioInputTokens,
