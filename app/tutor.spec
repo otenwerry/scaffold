@@ -58,7 +58,7 @@ exe = EXE(
     argv_emulation=False,
     target_arch=None,
     codesign_identity=None,
-    entitlements_file=None,
+    entitlements_file='entitlements.plist',
     icon='logos/icon.icns', 
 )
 
@@ -77,7 +77,7 @@ app = BUNDLE(
     coll,
     name='Tutor.app',
     icon='logos/icon.icns',
-    bundle_identifier='com.yourcompany.tutor',
+    bundle_identifier='com.scaffoldai.tutor',
     info_plist={
         'NSHighResolutionCapable': 'True',
         'NSMicrophoneUsageDescription': 'Tutor needs microphone access to record your questions.',

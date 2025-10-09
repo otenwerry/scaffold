@@ -1,0 +1,5 @@
+# Apple Distribution Dependencies
+# Install with: pip install -r requirements-apple-distribution.txt
+
+python-dotenv>=1.0.0
+PyInstaller>=6.0.0
