@@ -338,7 +338,6 @@ class TutorTray(QSystemTrayIcon):
         self._rt_task = None
         self._rt_session_active = False
         self._rt_writer_task = None
-        self._rt_should_send_audio = False  
  
         #pipeline state
         self.executor = ThreadPoolExecutor(max_workers=2)
@@ -728,6 +727,7 @@ class TutorTray(QSystemTrayIcon):
                 "text": ocr_text
             }))
         
+
         await self._rt_ws.send(json.dumps({
             "type": "input_audio_buffer.commit"
         }))
@@ -968,6 +968,9 @@ class TutorTray(QSystemTrayIcon):
 
     def _stop_recording_and_process(self):
         print(f"[{timestamp()}] Recording: Stop requested")
+        with self._lock:
+            pending = sum(chunk.size for chunk in self._buf)
+        print(f"[{timestamp()}] Recording: Pending audio: {pending} bytes")
         if not self.is_recording:
             self.update_status.emit("No recording to process")
             print("Recording: Not recording; nothing to stop")
