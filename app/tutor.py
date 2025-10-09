@@ -338,6 +338,7 @@ class TutorTray(QSystemTrayIcon):
         self._rt_task = None
         self._rt_session_active = False
         self._rt_writer_task = None
+        self._rt_should_send_audio = False
  
         #pipeline state
         self.executor = ThreadPoolExecutor(max_workers=2)
