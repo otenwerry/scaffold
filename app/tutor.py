@@ -659,7 +659,7 @@ class TutorTray(QSystemTrayIcon):
             self._stop_recording_and_process()
 
     def _start_recording_realtime(self):
-        print("Recording: Start requested (realtime)")
+        print(f"[{timestamp()}] Recording: Start requested (realtime)")
         if self.is_recording:
             print("Recording: Already recording; ignoring start")
             return
@@ -676,7 +676,7 @@ class TutorTray(QSystemTrayIcon):
         self.is_recording = True
         self.update_status.emit("Recording")
         self.show_notification.emit("Tutor", "", "Asking…")
-        print("Recording: Started (realtime)")
+        print(f"[{timestamp()}] Recording: Started (realtime)")
 
     def _start_realtime_session(self):
         print("Realtime: Starting session in worker thread")
@@ -860,7 +860,7 @@ class TutorTray(QSystemTrayIcon):
                                 self.play_audio(wav_io.getvalue(), wait=False)
                                 current_audio = bytearray()
                         elif etype == "response.done":
-                            print(f"Realtime: Response complete")
+                            print(f"[{timestamp()}] Realtime: Response complete")
                             self.update_status.emit("Ready")
                             
                             # Show notification
