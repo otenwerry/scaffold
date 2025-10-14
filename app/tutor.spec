@@ -9,29 +9,32 @@ datas = [
         ('styles/base.qss', 'styles'),
     ]
 
-if os.path.exists("/usr/local/bin/tesseract"):
-    datas += [("/usr/local/bin/tesseract", "tesseract")]
-elif os.path.exists("/opt/homebrew/bin/tesseract"):
-    datas += [("/opt/homebrew/bin/tesseract", "tesseract")]
-
-if os.path.isdir("/usr/local/share/tessdata"):
-    datas += [("/usr/local/share/tessdata", "tessdata")]
-elif os.path.isdir("/opt/homebrew/share/tessdata"):
-    datas += [("/opt/homebrew/share/tessdata", "tessdata")]
-
 a = Analysis(
     ['tutor.py'],
     pathex=[],
     binaries=binaries,
     datas=datas,
     hiddenimports=[
+        'PySide6.QtCore',
+        'PySide6.QtGui',
+        'PySide6.QtWidgets',
         'PySide6',
         'sounddevice',
         'numpy',
         'mss',
         'openai',
         'pynput.keyboard',
-        'pytesseract',
+        'pynput.keyboard._darwin', 
+        'Foundation',  
+        'Vision',      
+        'Quartz',    
+        'supabase',
+        'keyring',
+        'websockets',
+        'websockets.asyncio',
+        'websockets.asyncio.client',
+        'certifi',
+        'ssl',
     ],
     hookspath=[],
     hooksconfig={},
@@ -50,7 +53,7 @@ exe = EXE(
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
-    upx=True,
+    upx=False, # was True
     upx_exclude=[],
     runtime_tmpdir=None,
     console=False,  # False = no terminal window
@@ -58,7 +61,7 @@ exe = EXE(
     argv_emulation=False,
     target_arch=None,
     codesign_identity=None,
-    entitlements_file='entitlements.plist',
+    entitlements_file=None,
     icon='logos/icon.icns', 
 )
 
@@ -68,7 +71,7 @@ coll = COLLECT(
     a.zipfiles,
     a.datas,
     strip=False,
-    upx=True,
+    upx=False,
     upx_exclude=[],
     name='Tutor'
 )
@@ -77,7 +80,9 @@ app = BUNDLE(
     coll,
     name='Tutor.app',
     icon='logos/icon.icns',
-    bundle_identifier='com.scaffoldai.tutor',
+    bundle_identifier='com.scaffold.tutor',
+    codesign_identity=None,
+    entitlements_file=None,
     info_plist={
         'NSHighResolutionCapable': 'True',
         'NSMicrophoneUsageDescription': 'Tutor needs microphone access to record your questions.',

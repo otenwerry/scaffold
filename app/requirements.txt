@@ -1,4 +1,5 @@
 anthropic>=0.29
+dotenv
 keyring
 mss
 numpy
@@ -10,7 +11,6 @@ pynput
 pyobjc-core
 pyobjc-framework-Cocoa
 pyobjc-framework-Vision
-pytesseract
 sounddevice
 supabase
 websockets

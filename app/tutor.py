@@ -29,7 +29,7 @@ from openai import AsyncOpenAI
 from concurrent.futures import ThreadPoolExecutor
 from pynput import keyboard as pk
 from PIL import Image
-import pytesseract
+#import pytesseract
 from collections import deque
 from pathlib import Path
 from datetime import datetime
@@ -327,7 +327,7 @@ class TutorTray(QSystemTrayIcon):
             QTimer.singleShot(500, self.show_auth_dialog)
         self.setup_icon()
         self.setup_api_client()
-        self.setup_tesseract()
+        #self.setup_tesseract()
         self.is_recording = False
         self._buf = deque(maxlen=(RING_SECONDS * SR) // BLOCKSIZE) 
         self._lock = threading.Lock() # lock for buffer
@@ -713,10 +713,11 @@ class TutorTray(QSystemTrayIcon):
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         try:
-            if APPLE_OCR:
+            ocr_text = loop.run_until_complete(self._apple_ocr(screenshot))
+            """if APPLE_OCR:
                 ocr_text = loop.run_until_complete(self._apple_ocr(screenshot))
             else:
-                ocr_text = loop.run_until_complete(self._ocr(screenshot))
+                ocr_text = loop.run_until_complete(self._ocr(screenshot))"""
             print(f"[{timestamp()}] Realtime: OCR completed, {len(ocr_text)} chars")
             # Signal the realtime session to add OCR and request response
             if self._rt_loop and self._rt_ws:
@@ -774,9 +775,12 @@ class TutorTray(QSystemTrayIcon):
             return f"OCR: Error occurred: {e}"
 
     async def _apple_ocr(self, screenshot):
+        print(f"APPLE OCR: Received screenshot, size: {len(screenshot)} bytes")
+        
         with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp:
             tmp.write(screenshot)
             tmp_path = tmp.name
+            print(f"APPLE OCR: Saved screenshot to {tmp_path}")
         try:
             url = NSURL.fileURLWithPath_(tmp_path)
             request = VNRecognizeTextRequest.alloc().init()
