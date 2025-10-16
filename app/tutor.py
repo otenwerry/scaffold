@@ -53,7 +53,6 @@ SR = 24000
 FRAME_MS = 20 
 BLOCKSIZE = int(SR * FRAME_MS / 1000) 
 RING_SECONDS = 60 #60 seconds of audio to buffer
-SYSTEM_PROMPT = ""
 SUPABASE_URL = "https://giohlugbdruxxlgzdtlj.supabase.co"
 SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdpb2hsdWdiZHJ1eHhsZ3pkdGxqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY0MTY4MzUsImV4cCI6MjA3MTk5MjgzNX0.wJVWrwyo3RLPyrM4D0867GhjenY1Z-lwaZFN4GUQloM"
 APPLE_OCR = True
@@ -720,22 +719,17 @@ class TutorTray(QSystemTrayIcon):
         if not self._rt_ws:
             return
         
-        print(f"[{timestamp()}] Realtime: Sending OCR text and requesting response")
+        print(f"[{timestamp()}] Realtime: Sending OCR text")
         
         if ocr_text and ocr_text.strip():
             await self._rt_ws.send(json.dumps({
                 "type": "screen_context",
                 "text": ocr_text
             }))
-        
-
-        await self._rt_ws.send(json.dumps({
-            "type": "input_audio_buffer.commit"
-        }))
-        await self._rt_ws.send(json.dumps({
-            "type": "response.create"
-        }))
-        print(f"[{timestamp()}] Realtime: Response requested")
+    
+    async def _send_client_end(self):
+        if self._rt_ws:
+            await self._rt_ws.send(json.dumps({"type": "client.end"}))
 
     def _audio_cb(self, indata, frames, t, status):
         if status:
@@ -800,6 +794,7 @@ class TutorTray(QSystemTrayIcon):
         
         try:
             async with ws_connect(url, additional_headers=headers, ssl=ssl_context, open_timeout=15) as ws:
+                self._rt_loop = asyncio.get_running_loop()
                 self._rt_ws = ws
                 self._rt_session_active = True
                 print("Realtime: Connected to Edge Function")
@@ -879,22 +874,6 @@ class TutorTray(QSystemTrayIcon):
                 
                 # Writer task - sends audio to server
                 async def writer():
-                    # First, send session configuration
-                    session_update = {
-                        "type": "session.update",
-                        "session": {
-                            "modalities": ["text", "audio"],
-                            "voice": "alloy",
-                            "input_audio_format": "pcm16",
-                            "output_audio_format": "pcm16",
-                            "input_audio_transcription": {
-                                "model": "whisper-1"
-                            },
-                            "turn_detection": { "type": "none" },
-                            "instructions": SYSTEM_PROMPT
-                        }
-                    }
-                    await ws.send(json.dumps(session_update))
                     
                     while True:
                         if not self._rt_should_send_audio:
@@ -976,7 +955,7 @@ class TutorTray(QSystemTrayIcon):
             self.update_status.emit("No recording to process")
             print("Recording: Not recording; nothing to stop")
             return
-        
+        self._rt_should_send_audio = False
         try:
             if self._stream:
                 self._stream.stop()
@@ -985,7 +964,11 @@ class TutorTray(QSystemTrayIcon):
         finally:
             self._stream = None
             self.is_recording = False
-        
+        try:
+            asyncio.run_coroutine_threadsafe(self._send_client_end(), self._rt_loop)  
+        except Exception as e:
+            print(f"Stop: failed to send client.end: {e}")
+            
         # Take screenshot and do OCR
         self.update_status.emit("Taking screenshot")
         print(f"[{timestamp()}] Screenshot: Capturing screen")
@@ -1005,19 +988,12 @@ class TutorTray(QSystemTrayIcon):
         return
 
 def main():
-    global SYSTEM_PROMPT
     print("Main: Launching TutorTray app")
     #app = TutorTray()
     app = QApplication(sys.argv)
     with open(asset_path("styles/base.qss"), "r") as f:
         app.setStyleSheet(f.read())
     app.setQuitOnLastWindowClosed(False) #keep running in tray
-    try:
-        with open(asset_path("system_prompt.txt"), "r", encoding="utf-8") as f:
-            SYSTEM_PROMPT = f.read()
-    except Exception as e:
-        QMessageBox.critical(None, "Error", f"Error reading system prompt: {e}")
-        sys.exit(1)
     
     tray = TutorTray(app)
     print("Main: Starting run loop")

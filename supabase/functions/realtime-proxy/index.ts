@@ -91,7 +91,6 @@ const appDB = supabaseUser.schema('app')
   const { socket: clientSocket, response } = Deno.upgradeWebSocket(req)
   console.log('Client WebSocket upgraded')
 
-  let openaiSocket: WebSocket | null = null
   let sessionStartTime = Date.now()
   let sessionTimeout: number | null = null
   let accumulatedUsage: UsageData | null = null
@@ -160,98 +159,205 @@ const appDB = supabaseUser.schema('app')
   }, MAX_SESSION_DURATION_MS)
 
   // Handle client messages
-  clientSocket.onopen = async () => {
-    console.log('Client WebSocket opened, connecting to OpenAI')
+// === Session ownership + state machine (put near other top-level consts) ===
+const SYSTEM_PROMPT = Deno.env.get("SYSTEM_PROMPT") ?? "You are a concise, helpful AI tutor.";
+const MIN_AUDIO_BYTES_100MS = 4800; // 24kHz mono PCM16 => 0.1s * 24000 * 2 bytes
+type Phase = "IDLE" | "STREAMING" | "AWAITING_RESPONSE";
 
-    try {
-      // Connect to OpenAI Realtime API
-      const openaiUrl = 'wss://api.openai.com/v1/realtime?model=gpt-realtime'
-      openaiSocket = new WebSocket(openaiUrl, {
-        headers: {
-          'Authorization': `Bearer ${OPENAI_API_KEY}`,
-          'OpenAI-Beta': 'realtime=v1'
+let openaiSocket: WebSocket | null = null;
+let configured = false;
+let phase: Phase = "IDLE";
+let bufferedAudioBytes = 0;
+const pendingToOpenAI: string[] = [];
+const pendingClientMsgsUntilConfigured: string[] = [];
+
+// === Helpers ===
+const sendToClient = (obj: unknown) => {
+  if (clientSocket.readyState === WebSocket.OPEN) clientSocket.send(JSON.stringify(obj));
+};
+const forwardToOpenAI = (obj: unknown) => {
+  const msg = typeof obj === "string" ? obj : JSON.stringify(obj);
+  if (openaiSocket && openaiSocket.readyState === WebSocket.OPEN) openaiSocket.send(msg);
+  else pendingToOpenAI.push(msg);
+};
+const flushPendingToOpenAI = () => {
+  for (const m of pendingToOpenAI) openaiSocket!.send(m);
+  pendingToOpenAI.length = 0;
+};
+const flushBufferedClientMsgs = () => {
+  for (const m of pendingClientMsgsUntilConfigured) openaiSocket!.send(m);
+  pendingClientMsgsUntilConfigured.length = 0;
+};
+
+// === Client socket opened: connect to OpenAI ===
+clientSocket.onopen = async () => {
+  try {
+    const openaiUrl = "wss://api.openai.com/v1/realtime?model=gpt-realtime";
+    openaiSocket = new WebSocket(openaiUrl, {
+      headers: {
+        Authorization: `Bearer ${OPENAI_API_KEY}`,
+        "OpenAI-Beta": "realtime=v1",
+      },
+    });
+
+    // OpenAI connected: immediately configure the session (NO VAD, with instructions)
+    openaiSocket.onopen = () => {
+      // Baseline session.update owned by EDGE
+      console.log("SESSION.UPDATE: sending baseline config");
+      console.log("SYSTEM_PROMPT: ", SYSTEM_PROMPT);
+      forwardToOpenAI({
+        type: "session.update",
+        session: {
+          instructions: SYSTEM_PROMPT,
+          modalities: ["text", "audio"],
+          voice: "alloy",
+          input_audio_format: "pcm16",
+          output_audio_format: "pcm16",
+          input_audio_transcription: { model: "whisper-1" },
+          turn_detection: null, // disable VAD at the server
+        },
+      });
+      console.log("SESSION.UPDATE: sent");
+    };
+
+    // Messages from OpenAI → Client, and local state updates
+    openaiSocket.onmessage = (event) => {
+      // Always forward raw data to client
+      if (clientSocket.readyState === WebSocket.OPEN) clientSocket.send(event.data);
+
+      // Track config/phase/usage
+      try {
+        const msg = JSON.parse(event.data as string);
+
+        if (msg.type === "session.updated") {
+          console.log("SESSION.UPDATED: ack from OpenAI (config is active)");
+          configured = true;
+          // Only now allow anything to flow to OpenAI
+          flushBufferedClientMsgs();
+          flushPendingToOpenAI();
         }
-      })
 
-      openaiSocket.onopen = () => {
-        console.log('OpenAI WebSocket connected')
+        if (msg.type === "response.created") {
+          console.log("RESPONSE.CREATED: turn started (should follow canary prompt)");
+          phase = "AWAITING_RESPONSE";
+        }
+        if (msg.type === "response.done") {
+          console.log("RESPONSE.DONE: turn finished");
+          phase = "IDLE";
+          bufferedAudioBytes = 0;
+          // (Your existing usage capture stays as-is)
+          const usage = msg.response?.usage;
+          if (usage) accumulatedUsage = usage;
+        }
+      } catch {
+        /* not JSON – ignore */
       }
+    };
 
-      openaiSocket.onmessage = (event) => {
-        // Forward OpenAI messages to client
-        if (clientSocket.readyState === WebSocket.OPEN) {
-          clientSocket.send(event.data)
-        }
+    openaiSocket.onerror = (error) => {
+      console.error("OpenAI WebSocket error:", error);
+      if (clientSocket.readyState === WebSocket.OPEN) clientSocket.close(1011, "OpenAI connection error");
+    };
+    openaiSocket.onclose = () => {
+      console.log("OpenAI WebSocket closed");
+      if (clientSocket.readyState === WebSocket.OPEN) clientSocket.close();
+    };
+  } catch (err) {
+    console.error("Failed to connect to OpenAI:", err);
+    clientSocket.close(1011, "Failed to connect to OpenAI");
+  }
+};
 
-        // Track usage from response.done events
-        try {
-          const message = JSON.parse(event.data)
-          if (message.type === 'response.done') {
-            const usage = message.response?.usage
-            if (usage) {
-              accumulatedUsage = usage
-              console.log('Captured usage data from response.done')
-            }
-          }
-        } catch (e) {
-          // Not JSON or missing usage, ignore
-        }
-      }
+// Messages from client → EDGE (we own the turn lifecycle)
+clientSocket.onmessage = (event) => {
+  // Accept only these client-originated types:
+  //  - input_audio_buffer.append (audio streaming)
+  //  - client.end (custom; user finished speaking)
+  //  - screen_context (optional text context; we may queue a response)
+  // Any client-side commit/response/create is blocked here.
 
-      openaiSocket.onerror = (error) => {
-        console.error('OpenAI WebSocket error:', error)
-        if (clientSocket.readyState === WebSocket.OPEN) {
-          clientSocket.close(1011, 'OpenAI connection error')
-        }
-      }
+  let parsed: any = null;
+  try { parsed = JSON.parse(event.data as string); } catch { /* non-JSON: ignore */ }
 
-      openaiSocket.onclose = () => {
-        console.log('OpenAI WebSocket closed')
-        if (clientSocket.readyState === WebSocket.OPEN) {
-          clientSocket.close()
-        }
-      }
-
-    } catch (err) {
-      console.error('Failed to connect to OpenAI:', err)
-      clientSocket.close(1011, 'Failed to connect to OpenAI')
-    }
+  // Block disallowed control messages from client
+  if (parsed && (parsed.type === "input_audio_buffer.commit" || parsed.type === "response.create")) {
+    return sendToClient({
+      type: "error",
+      error: { type: "invalid_request_error", code: "client_control_blocked", message: "Client may not commit or create responses." },
+    });
   }
 
-  clientSocket.onmessage = (event) => {
-    // Handle special client messages
+  // 1) Audio streaming from client
+  if (parsed && parsed.type === "input_audio_buffer.append") {
+    if (!configured) {
+      pendingClientMsgsUntilConfigured.push(JSON.stringify(parsed));
+      return;
+    }
+    // Track bytes to enforce ≥100ms on commit
     try {
-      const message = JSON.parse(event.data)
-      
-      // If client sends screen context, forward it as a conversation item
-      if (message.type === 'screen_context') {
-        console.log(`Received screen context: ${message.text?.length || 0} chars`)
-        
-        if (openaiSocket && openaiSocket.readyState === WebSocket.OPEN) {
-          // Forward as conversation item to OpenAI
-          openaiSocket.send(JSON.stringify({
-            type: 'conversation.item.create',
-            item: {
-              type: 'message',
-              role: 'user',
-              content: [{
-                type: 'input_text',
-                text: `Screen content:\n${message.text}`
-              }]
-            }
-          }))
-        }
-        return
-      }
-    } catch (e) {
-      // Not a special message, just forward it
-    }
+      const b64 = parsed.audio as string;
+      const bytes = b64 ? (typeof atob === "function" ? atob(b64) : Buffer.from(b64, "base64").toString("binary")).length : 0;
+      bufferedAudioBytes += bytes;
+    } catch { /* ignore size if decoding fails */ }
 
-    // Forward all other client messages to OpenAI
-    if (openaiSocket && openaiSocket.readyState === WebSocket.OPEN) {
-      openaiSocket.send(event.data)
-    }
+    phase = phase === "IDLE" ? "STREAMING" : phase;
+    return forwardToOpenAI(parsed);
   }
+
+  // 2) Client indicates they're done talking
+  if (parsed && parsed.type === "client.end") {
+    if (!configured) {
+      pendingClientMsgsUntilConfigured.push(JSON.stringify(parsed));
+      return;
+    }
+    if (phase !== "STREAMING") {
+      return sendToClient({
+        type: "error",
+        error: { type: "invalid_request_error", code: "no_active_stream", message: "No active audio stream to end." },
+      });
+    }
+    if (bufferedAudioBytes < MIN_AUDIO_BYTES_100MS) {
+      // Don't commit; reset state and inform client
+      phase = "IDLE";
+      bufferedAudioBytes = 0;
+      return sendToClient({
+        type: "error",
+        error: { type: "invalid_request_error", code: "input_audio_buffer_commit_empty", message: "No speech detected (need ≥100ms of audio)." },
+      });
+    }
+    // Single authoritative commit + response
+    forwardToOpenAI({ type: "input_audio_buffer.commit" });
+    phase = "AWAITING_RESPONSE";
+    forwardToOpenAI({ type: "response.create" });
+    return;
+  }
+
+  // 3) Screen context (text) → add item, and (if idle) create one response
+  if (parsed && parsed.type === "screen_context") {
+    const item = {
+      type: "conversation.item.create",
+      item: {
+        type: "message",
+        role: "user",
+        content: [{ type: "input_text", text: `Screen content:\n${parsed.text ?? ""}` }],
+      },
+    };
+    if (!configured) {
+      pendingClientMsgsUntilConfigured.push(JSON.stringify(item));
+      return;
+    }
+    forwardToOpenAI(item);
+
+    if (phase === "IDLE") {
+      phase = "AWAITING_RESPONSE";
+      forwardToOpenAI({ type: "response.create" });
+    } // else: if STREAMING/AWAITING_RESPONSE, do nothing (no duplicates)
+    return;
+  }
+
+  // Everything else from client is ignored (or you can log it)
+};
+
 
   clientSocket.onerror = (error) => {
     console.error('Client WebSocket error:', error)
