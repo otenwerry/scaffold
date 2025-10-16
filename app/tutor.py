@@ -890,7 +890,7 @@ class TutorTray(QSystemTrayIcon):
                             "input_audio_transcription": {
                                 "model": "whisper-1"
                             },
-                            "turn_detection": None,
+                            "turn_detection": { "type": "none" },
                             "instructions": SYSTEM_PROMPT
                         }
                     }
