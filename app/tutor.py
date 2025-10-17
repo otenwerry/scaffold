@@ -282,32 +282,6 @@ class AuthManager:
         except Exception as e:
             print(f"Error signing out: {e}")
     
-    async def increment_usage(
-        self,   
-        *, 
-        text_input_tokens: int = 0,
-        text_output_tokens: int = 0,
-        audio_input_tokens: int = 0,
-        audio_output_tokens: int = 0,
-        total_cost: float = 0.0
-    ) -> dict | None:
-        if not self.user:
-            raise RuntimeError("User not authenticated")
-        params = {
-            'p_text_input_tokens': text_input_tokens,
-            'p_text_output_tokens': text_output_tokens,
-            'p_audio_input_tokens': audio_input_tokens,
-            'p_audio_output_tokens': audio_output_tokens,
-            'p_total_cost': total_cost
-        }
-        try:
-            response = self.supabase.rpc('rpc_track_usage', params).execute()
-            row = response.data[0]
-            print(f"Usage incremented for user {self.user.id}")
-            return row
-        except Exception as e:
-            print(f"Error incrementing usage: {e}")
-            return None
 
         
 #class TutorTray(rumps.App):
@@ -638,8 +612,29 @@ class TutorTray(QSystemTrayIcon):
         if not self.auth_manager.is_authenticated():
             self.show_auth_dialog()
             return
+        #preflight quota check
+        try:
+            resp = self.auth_manager.supabase.schema('app').rpc('rpc_check_quota', {}).execute()
+            row = (resp.data or [None])[0]
+            if not row:
+                self.show_error.emit("Quota check failed: empty response")
+                return
+            if not row.get('allowed', False):
+                # Differentiate free vs. subscribed based on the returned limit (5 vs 10.0)
+                limit = row.get('limit')
+                if limit == 5 or (isinstance(limit, (int, float)) and float(limit) <= 5.01):
+                    # Free tier is out of calls
+                    self.show_error.emit("You're out of free usage. Subscribe to continue.")
+                else:
+                    # Subscribed user hit monthly cap
+                    self.show_error.emit("You've hit your monthly usage limit.")
+                # Do NOT flip button, do NOT start session
+                return
+        except Exception as e:
+            self.show_error.emit(f"Quota check failed: {e}")
+            return
+        #end preflight quota check
         if not self.is_recording:
-            self.ask_action.setText("Stop Asking (F9)")
             print("UI: Entering asking mode")
             self.first_audio_played = False
             ws_dead = (self._rt_ws is None)
@@ -665,6 +660,7 @@ class TutorTray(QSystemTrayIcon):
 
     def _start_recording_realtime(self):
         print(f"[{timestamp()}] Recording: Start requested (realtime)")
+        self.ask_action.setText("Stop Asking (F9)")
         if self.is_recording:
             print("Recording: Already recording; ignoring start")
             return
