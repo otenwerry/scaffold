@@ -695,7 +695,8 @@ class TutorTray(QSystemTrayIcon):
 
     def _finalize_realtime(self, screenshot):
         print(f"[{timestamp()}] Realtime: Finalizing with OCR")
-        self._rt_should_send_audio = False
+
+        # Run OCR to completion in this worker thread
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         try:
@@ -704,16 +705,41 @@ class TutorTray(QSystemTrayIcon):
             else:
                 ocr_text = loop.run_until_complete(self._ocr(screenshot))
             print(f"[{timestamp()}] Realtime: OCR completed, {len(ocr_text)} chars")
-            # Signal the realtime session to add OCR and request response
+
+            # Prepare a coroutine that (1) sends screen_context if present, then (2) sends client.end
+            async def send_context_then_end():
+                if not self._rt_ws:
+                    return
+                # 1) screen_context first (only if we have non-empty text)
+                if ocr_text and ocr_text.strip():
+                    await self._rt_ws.send(json.dumps({
+                        "type": "screen_context",
+                        "text": ocr_text
+                    }))
+                    print(f"[{timestamp()}] Realtime: OCR text sent")
+
+                # 2) authoritative end-of-turn trigger (always send)
+                await self._send_client_end()
+                print(f"[{timestamp()}] Realtime: client.end sent")
+
+            # Schedule on the realtime loop if it’s alive
             if self._rt_loop and self._rt_ws:
-                asyncio.run_coroutine_threadsafe(
-                    self._send_ocr_and_respond(ocr_text),
-                    self._rt_loop
-                )
+                asyncio.run_coroutine_threadsafe(send_context_then_end(), self._rt_loop)
+            else:
+                print("Realtime: No active loop/socket; skipping finalize send")
+
         except Exception as e:
             print(f"Realtime: Finalize error: {e}")
+            # Even if OCR fails, still try to end the turn to avoid hanging.
+            try:
+                if self._rt_loop and self._rt_ws:
+                    asyncio.run_coroutine_threadsafe(self._send_client_end(), self._rt_loop)
+                    print(f"[{timestamp()}] Realtime: client.end sent (fallback after OCR error)")
+            except Exception as _:
+                pass
         finally:
             loop.close()
+
 
     async def _send_ocr_and_respond(self, ocr_text):
         if not self._rt_ws:
@@ -948,14 +974,18 @@ class TutorTray(QSystemTrayIcon):
 
     def _stop_recording_and_process(self):
         print(f"[{timestamp()}] Recording: Stop requested")
+
+        # Snapshot pending bytes for logging (not used for logic)
         with self._lock:
-            pending = sum(chunk.size for chunk in self._buf)
-        print(f"[{timestamp()}] Recording: Pending audio: {pending} bytes")
+            pending_bytes = sum(chunk.size for chunk in self._buf)
+        print(f"[{timestamp()}] Recording: Pending audio (pre-stop): {pending_bytes} bytes")
+
         if not self.is_recording:
             self.update_status.emit("No recording to process")
             print("Recording: Not recording; nothing to stop")
             return
-        self._rt_should_send_audio = False
+
+        # 1) Stop the input stream so no new frames enter the buffer.
         try:
             if self._stream:
                 self._stream.stop()
@@ -964,12 +994,24 @@ class TutorTray(QSystemTrayIcon):
         finally:
             self._stream = None
             self.is_recording = False
-        try:
-            asyncio.run_coroutine_threadsafe(self._send_client_end(), self._rt_loop)  
-        except Exception as e:
-            print(f"Stop: failed to send client.end: {e}")
-            
-        # Take screenshot and do OCR
+
+        # 2) DRAIN: keep the writer task running until the ring buffer is empty.
+        #    Do NOT set _rt_should_send_audio False yet; that would strand frames.
+        #    We wait deterministically on the actual buffer state.
+        print(f"[{timestamp()}] Recording: Draining pending audio to server")
+        while True:
+            with self._lock:
+                buf_empty = (len(self._buf) == 0)
+            if buf_empty or not self._rt_session_active or not self._rt_ws:
+                break
+            # Yield briefly; this is condition-driven (no fixed backoff).
+            time.sleep(0.01)
+
+        # Now it's safe to stop the writer loop from sending any more audio.
+        self._rt_should_send_audio = False
+        print(f"[{timestamp()}] Recording: Drain complete; writer will idle")
+
+        # 3) Take screenshot (same as before)
         self.update_status.emit("Taking screenshot")
         print(f"[{timestamp()}] Screenshot: Capturing screen")
         try:
@@ -980,12 +1022,14 @@ class TutorTray(QSystemTrayIcon):
         except Exception as e:
             print(f"Screenshot: Error occurred: {e}")
             png_bytes = b""
-        
-        # Submit OCR + finalization to realtime session
+
+        # 4) Kick OCR + finalize (this will send screen_context then client.end)
         self.executor.submit(self._finalize_realtime, png_bytes)
+
         self.update_status.emit("Thinking...")
         self.show_notification.emit("Tutor", "", "Thinking...")
         return
+
 
 def main():
     print("Main: Launching TutorTray app")
