@@ -904,6 +904,16 @@ class TutorTray(QSystemTrayIcon):
                             user_transcript = ""
                             assistant_response = ""
                             current_audio = bytearray()
+                        elif etype == "limit.reached":
+                            if self._stream:
+                                self._stream.stop()
+                                self._stream.close()
+                            self._stream = None
+                            self.is_recording = False
+                            self._rt_should_send_audio = False
+                            self.ask_action.setText("Start Asking (F9)")
+                            self.update_status.emit("Thinking...")
+                            print(f"[{timestamp()}] Realtime: Limit reached")
                         elif etype == "error":
                             print(f"Realtime: Error event: {event}")
                             error_msg = event.get("error", {}).get("message", "Unknown error")

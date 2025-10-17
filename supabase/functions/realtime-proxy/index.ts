@@ -162,8 +162,11 @@ const appDB = supabaseUser.schema('app')
 // === Session ownership + state machine (put near other top-level consts) ===
 const SYSTEM_PROMPT = Deno.env.get("SYSTEM_PROMPT") ?? "You are a concise, helpful AI tutor.";
 const MIN_AUDIO_BYTES_100MS = 4800; // 24kHz mono PCM16 => 0.1s * 24000 * 2 bytes
+const MAX_AUDIO_SECONDS = 300;
+const MAX_AUDIO_BYTES = MAX_AUDIO_SECONDS * 24000 * 2; // 24kHz mono PCM16
 type Phase = "IDLE" | "STREAMING" | "AWAITING_RESPONSE";
-
+let totalAudioBytes = 0;
+let capReached = false;
 let openaiSocket: WebSocket | null = null;
 let configured = false;
 let phase: Phase = "IDLE";
@@ -252,6 +255,8 @@ clientSocket.onopen = async () => {
             await trackUsage();
             accumulatedUsage = null;
           } 
+          totalAudioBytes = 0;
+          capReached = false;
         }
       } catch {
         /* not JSON – ignore */
@@ -297,11 +302,24 @@ clientSocket.onmessage = (event) => {
       pendingClientMsgsUntilConfigured.push(JSON.stringify(parsed));
       return;
     }
+    if (capReached) {
+      sendToClient({ type: "limit.reached", seconds: MAX_AUDIO_SECONDS});
+      return;
+    }
     // Track bytes to enforce ≥100ms on commit
     try {
       const b64 = parsed.audio as string;
       const bytes = b64 ? (typeof atob === "function" ? atob(b64) : Buffer.from(b64, "base64").toString("binary")).length : 0;
       bufferedAudioBytes += bytes;
+      totalAudioBytes += bytes;
+      if (totalAudioBytes > MAX_AUDIO_BYTES && phase === "STREAMING") {
+        capReached = true;
+        sendToClient({ type: "limit.reached", seconds: MAX_AUDIO_SECONDS});
+        forwardToOpenAI({ type: "input_audio_buffer.commit" });
+        phase = "AWAITING_RESPONSE";
+        forwardToOpenAI({ type: "response.create" });
+        return;
+      }
     } catch { /* ignore size if decoding fails */ }
 
     phase = phase === "IDLE" ? "STREAMING" : phase;
