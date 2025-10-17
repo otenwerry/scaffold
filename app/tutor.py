@@ -642,7 +642,13 @@ class TutorTray(QSystemTrayIcon):
             self.ask_action.setText("Stop Asking (F9)")
             print("UI: Entering asking mode")
             self.first_audio_played = False
-            if not self._rt_session_active:
+            ws_dead = (self._rt_ws is None)
+            try:
+                ws_closed = bool(getattr(self._rt_ws, "closed", False))
+            except Exception:
+                ws_closed = True
+            session_healthy = self._rt_session_active and (not ws_dead) and (not ws_closed)
+            if not session_healthy:
                 print("UI: Starting new realtime session")
                 self.update_status.emit("Connecting...")
                 self.show_notification.emit("Tutor", "", "Connecting...")
@@ -837,6 +843,15 @@ class TutorTray(QSystemTrayIcon):
                             message = await ws.recv()
                         except Exception as e:
                             print(f"Realtime: Reader stopped: {e}")
+                            self._rt_session_active = False
+                            self._rt_ws = None
+                            if self._rt_writer_task and not self._rt_writer_task.done():
+                                self._rt_writer_task.cancel()
+                                try:
+                                    await self._rt_writer_task
+                                except asyncio.CancelledError:
+                                    pass
+                            self._rt_writer_task = None
                             break
                         
                         if isinstance(message, (bytes, bytearray)):
