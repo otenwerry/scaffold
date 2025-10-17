@@ -149,7 +149,7 @@ const appDB = supabaseUser.schema('app')
       openaiSocket.close()
     }
 
-    await trackUsage()
+    await trackUsage() //as a failsafe, track usage even if the session ends prematurely
   }
 
   // Set up session timeout
@@ -221,7 +221,7 @@ clientSocket.onopen = async () => {
     };
 
     // Messages from OpenAI → Client, and local state updates
-    openaiSocket.onmessage = (event) => {
+    openaiSocket.onmessage = async (event) => {
       // Always forward raw data to client
       if (clientSocket.readyState === WebSocket.OPEN) clientSocket.send(event.data);
 
@@ -247,7 +247,11 @@ clientSocket.onopen = async () => {
           bufferedAudioBytes = 0;
           // (Your existing usage capture stays as-is)
           const usage = msg.response?.usage;
-          if (usage) accumulatedUsage = usage;
+          if (usage) {
+            accumulatedUsage = usage;
+            await trackUsage();
+            accumulatedUsage = null;
+          } 
         }
       } catch {
         /* not JSON – ignore */
