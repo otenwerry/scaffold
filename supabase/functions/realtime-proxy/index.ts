@@ -164,6 +164,7 @@ const SYSTEM_PROMPT = Deno.env.get("SYSTEM_PROMPT") ?? "You are a concise, helpf
 const MIN_AUDIO_BYTES_100MS = 4800; // 24kHz mono PCM16 => 0.1s * 24000 * 2 bytes
 const MAX_AUDIO_SECONDS = 300;
 const MAX_AUDIO_BYTES = MAX_AUDIO_SECONDS * 24000 * 2; // 24kHz mono PCM16
+const MAX_SCREEN_CHARS = 10000;
 type Phase = "IDLE" | "STREAMING" | "AWAITING_RESPONSE";
 let totalAudioBytes = 0;
 let capReached = false;
@@ -395,12 +396,15 @@ clientSocket.onmessage = async (event) => {
 
   // 3) Screen context (text) → add item, and (if idle) create one response
   if (parsed && parsed.type === "screen_context") {
+    const scRaw = parsed.text ?? "";
+    const scText = typeof scRaw === "string" ? scRaw : String(scRaw);
+    const scCapped = scText.length > MAX_SCREEN_CHARS ? scText.slice(0, MAX_SCREEN_CHARS) : scText;
     const item = {
       type: "conversation.item.create",
       item: {
         type: "message",
         role: "user",
-        content: [{ type: "input_text", text: `Screen content:\n${parsed.text ?? ""}` }],
+        content: [{ type: "input_text", text: `Screen content:\n${scCapped}` }],
       },
     };
     if (!configured) {
