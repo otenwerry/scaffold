@@ -191,6 +191,41 @@ const flushBufferedClientMsgs = () => {
   for (const m of pendingClientMsgsUntilConfigured) openaiSocket!.send(m);
   pendingClientMsgsUntilConfigured.length = 0;
 };
+const enforceQuotaOrClose = async (): Promise<boolean> => {
+  try {
+    const { data, error } = await appDB.rpc('rpc_check_quota');
+    if (error || !data?.[0]) {
+      console.error('Quota recheck failed:', error?.message);
+      sendToClient({
+        type: 'error',
+        error: { type: 'insufficient_quota', code: 'quota_check_failed', message: 'Quota check failed.' },
+      });
+      // Close both ends conservatively
+      try { clientSocket.close(4003, 'Quota check failed'); } catch {}
+      try { if (openaiSocket && openaiSocket.readyState === WebSocket.OPEN) openaiSocket.close(1000, 'Quota check failed'); } catch {}
+      return false;
+    }
+
+    const { allowed, used, remaining, limit } = data[0];
+    if (!allowed) {
+      // Inform client, then close
+      sendToClient({ type: 'limit.reached', used, remaining, limit });
+      try { clientSocket.close(4004, 'Quota exceeded'); } catch {}
+      try { if (openaiSocket && openaiSocket.readyState === WebSocket.OPEN) openaiSocket.close(1000, 'Quota exceeded'); } catch {}
+      return false;
+    }
+    return true;
+  } catch (e) {
+    console.error('Quota recheck exception:', e);
+    sendToClient({
+      type: 'error',
+      error: { type: 'insufficient_quota', code: 'quota_check_exception', message: 'Quota check failed.' },
+    });
+    try { clientSocket.close(4003, 'Quota check failed'); } catch {}
+    try { if (openaiSocket && openaiSocket.readyState === WebSocket.OPEN) openaiSocket.close(1000, 'Quota check failed'); } catch {}
+    return false;
+  }
+};
 
 // === Client socket opened: connect to OpenAI ===
 clientSocket.onopen = async () => {
@@ -278,7 +313,7 @@ clientSocket.onopen = async () => {
 };
 
 // Messages from client → EDGE (we own the turn lifecycle)
-clientSocket.onmessage = (event) => {
+clientSocket.onmessage = async (event) => {
   // Accept only these client-originated types:
   //  - input_audio_buffer.append (audio streaming)
   //  - client.end (custom; user finished speaking)
@@ -315,6 +350,8 @@ clientSocket.onmessage = (event) => {
       if (totalAudioBytes > MAX_AUDIO_BYTES && phase === "STREAMING") {
         capReached = true;
         sendToClient({ type: "limit.reached", seconds: MAX_AUDIO_SECONDS});
+        const ok = await enforceQuotaOrClose();
+        if (!ok) return;
         forwardToOpenAI({ type: "input_audio_buffer.commit" });
         phase = "AWAITING_RESPONSE";
         forwardToOpenAI({ type: "response.create" });
@@ -347,6 +384,8 @@ clientSocket.onmessage = (event) => {
         error: { type: "invalid_request_error", code: "input_audio_buffer_commit_empty", message: "No speech detected (need ≥100ms of audio)." },
       });
     }
+    const ok = await enforceQuotaOrClose();
+    if (!ok) return;
     // Single authoritative commit + response
     forwardToOpenAI({ type: "input_audio_buffer.commit" });
     phase = "AWAITING_RESPONSE";
@@ -371,6 +410,8 @@ clientSocket.onmessage = (event) => {
     forwardToOpenAI(item);
 
     if (phase === "IDLE") {
+      const ok = await enforceQuotaOrClose();
+      if (!ok) return;
       phase = "AWAITING_RESPONSE";
       forwardToOpenAI({ type: "response.create" });
     } // else: if STREAMING/AWAITING_RESPONSE, do nothing (no duplicates)
