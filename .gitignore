@@ -14,3 +14,7 @@ dist/
 supabase/.temp
 
 __pycache__/
+
+*.app
+*.zip
+*.dmg
