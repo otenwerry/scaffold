@@ -1,80 +1,75 @@
-# ui/settings.py
 from PySide6.QtWidgets import (
     QDialog, QHBoxLayout, QListWidget, QStackedWidget,
     QWidget, QFormLayout, QLineEdit, QCheckBox, QComboBox, QDialogButtonBox,
-    QVBoxLayout, QSizePolicy
+    QVBoxLayout, QSizePolicy, QLabel, QTextEdit, QVBoxLayout, QScrollArea
 )
 from PySide6.QtCore import Qt
 
 class SettingsDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setMinimumSize(600, 400)
-
-        # outer layer
+        self.setObjectName("SettingsDialog")
+        self.setWindowTitle("Scaffold Settings")
+        self.setMinimumSize(560, 400)
+        
+        # root layout
         root = QVBoxLayout(self)
         root.setObjectName("Root")
-        root.setContentsMargins(0, 0, 0, 0)
-        root.setSpacing(0)
+        root.setContentsMargins(16, 16, 16, 16)
+        root.setSpacing(12)
 
-        content = QHBoxLayout()
-        content.setContentsMargins(12, 12, 12, 0)
-        content.setSpacing(12)
+        title = QLabel("Thanks for trying out Scaffold! ")
+        title.setObjectName("SettingsTitle")
+        title.setAlignment(Qt.AlignLeft | Qt.AlignTop | Qt.AlignVCenter)
+        title.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        root.addWidget(title, alignment=Qt.AlignLeft)
 
-        # sidebar list
-        sidebar = QListWidget()
-        sidebar.addItems(["Home", "Settings", "Configuration", "Profile"])
-        sidebar.setFixedWidth(200)
-        sidebar.setObjectName("Sidebar")
+        scroll = QScrollArea()
+        scroll.setObjectName("ScrollArea")
+        scroll.setFrameShape(QScrollArea.NoFrame)
+        scroll.setWidgetResizable(True)
+        scroll.setAlignment(Qt.AlignTop | Qt.AlignLeft)
 
-        pages = QStackedWidget()
-        pages.setObjectName("Pages")
-        pages.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        content_host = QWidget()
+        content_host.setObjectName("SettingsRoot")
+        content_layout = QVBoxLayout(content_host)
+        content_layout.setContentsMargins(0, 0, 0, 0)
+        content_layout.setSpacing(8)
 
-        home = QWidget()
-        home.setObjectName("Home")
-        home_form = QFormLayout(home)
-        home_form.setContentsMargins(0, 0, 0, 0)
-        home_form.addRow("Welcome to Scaffold!", QLineEdit("test")) 
-        pages.addWidget(home)
+        body = QLabel(self._instructions_html())
+        body.setObjectName("InstructionsBody")
+        body.setWordWrap(True)
+        body.setTextFormat(Qt.RichText)
+        body.setTextInteractionFlags(Qt.TextSelectableByMouse | Qt.LinksAccessibleByMouse)
+        content_layout.addWidget(body)
+        content_layout.addStretch()
+        content_layout.setAlignment(Qt.AlignTop)
 
-        # settings page
-        general = QWidget()
-        gform = QFormLayout(general)
-        gform.addRow(QCheckBox("Launch at login"))
-        gform.setContentsMargins(0, 0, 0, 0)
-        gform.addRow("Global hotkey", QLineEdit("F9"))
-        pages.addWidget(general)
+        scroll.setWidget(content_host)
+        root.addWidget(scroll, 1)
 
-        # configuration page
-        config = QWidget()
-        cform = QFormLayout(config)
-        cform.setContentsMargins(0, 0, 0, 0)
-        cform.addRow("Input device", QComboBox())
-        cform.addRow("Output device", QComboBox())
-        pages.addWidget(config)
-
-        # profile page
-        profile = QWidget()
-        pform = QFormLayout(profile)
-        pform.setContentsMargins(0, 0, 0, 0)
-        pform.addRow("Name", QLineEdit())
-        pform.addRow("Email", QLineEdit())
-        pages.addWidget(profile)
-
-        sidebar.currentRowChanged.connect(pages.setCurrentIndex)
-
-        content.addWidget(sidebar)
-        content.addWidget(pages)
-        root.addLayout(content)
-
-        # close button
-        buttons = QDialogButtonBox(QDialogButtonBox.Close)
-        buttons.rejected.connect(self.close)
-        buttons.setObjectName("Buttons")
         
-        btn_row = QHBoxLayout()
-        btn_row.setContentsMargins(12, 12, 12, 12)
-        btn_row.addStretch()           # push buttons to the right
-        btn_row.addWidget(buttons)
-        root.addLayout(btn_row)
+ 
+        """buttons = QDialogButtonBox(QDialogButtonBox.Close)
+        buttons.setObjectName("SettingsButtons")
+        buttons.button(QDialogButtonBox.Close).setProperty("variant", "primary")
+        buttons.rejected.connect(self.reject)  # Close
+        root.addWidget(buttons, 0, Qt.AlignRight)"""
+
+    def _instructions_html(self) -> str:
+            return """
+            <div>
+            <p><b>Get started</b></p>
+            <ul style="list-style-type:none; margin-left: -30px;">
+                <li>Press Start/Stop Asking to share thoughts/confusions with Scaffold</li>
+                <li>Press <span class="kbd">Esc</span> or Exit to close the app and end a conversation</li>
+            </ul>
+            <p><b>Troubleshooting</b></p>
+            <p>Scaffold should be able to hear what you say, see your screen, and respond out loud. If it can't, try the below! </p>
+            <ul style="list-style-type:none; margin-left: -30px;">
+                <li>Mic issues: Check System Settings → Privacy & Security → Microphone → enable for "Tutor"</li>
+                <li>Screen issues: Check System Settings → Privacy & Security → Screen Recording → enable for "Tutor"</li>
+                <li>App not responsive: Fully quit and reopen
+            </ul>
+            </div>
+        """

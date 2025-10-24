@@ -31,6 +31,8 @@ a = Analysis(
         'openai',
         'pynput.keyboard',
         'pytesseract',
+        'Vision',
+        'Cocoa'
     ],
     hookspath=[],
     hooksconfig={},
@@ -45,7 +47,7 @@ exe = EXE(
     pyz,
     a.scripts,
     exclude_binaries=True,
-    name='Tutor',
+    name='Tutor4',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -69,17 +71,17 @@ coll = COLLECT(
     strip=False,
     upx=False,
     upx_exclude=[],
-    name='Tutor'
+    name='Tutor4'
 )
 
 app = BUNDLE(
     coll,
-    name='Tutor.app',
+    name='Tutor4.app',
     icon='logos/icon.icns',
-    bundle_identifier='com.yourcompany.tutor',
+    bundle_identifier='com.yourcompany.tutor4',
     info_plist={
         'NSHighResolutionCapable': 'True',
-        'NSMicrophoneUsageDescription': 'Tutor needs microphone access to record your questions.',
-        'NSScreenCaptureUsageDescription': 'Tutor needs screen access to see what you are asking about.',
+        'NSMicrophoneUsageDescription': 'Tutor4 needs microphone access to record your questions.',
+        'NSScreenCaptureUsageDescription': 'Tutor4 needs screen access to see what you are asking about.',
     },
 )
