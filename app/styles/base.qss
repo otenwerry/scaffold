@@ -1,26 +1,54 @@
-* { font-family: "Helvetica Neue", "Segoe UI", Roboto, Arial; font-size: 13px; }
-
-QFrame#LoginCard { background: #16181d; border: 1px solid rgba(255,255,255,0.07); border-radius: 14px; }
-QLabel#Title { font-size: 17px; font-weight: 600; margin-bottom: 2px; }
-QLabel#Subtitle { color: #aab2c0; margin-bottom: 12px; }
-
-QListWidget#Sidebar {
-    padding-left: 0px;
-    background: transparent;
-    border: none;
-    border-right: 1px solid black;
+#SettingsDialog {
+  border-radius: 12px;
 }
 
-QListWidget#Sidebar::item {
-    padding: 8px;
+#SettingsTitle {
+  font-weight: 600;
+  color: rgb(61,61,61);
+  font-size: 14px;
 }
 
-QListWidget#Sidebar::item:selected {
-    background: white;
-    border-radius: 8px;
-    color: black;
+#SettingsRoot QLabel {
+  /*font-size: 14px;*/
+  line-height: 1.5;
 }
 
-QVBoxLayout#Root{
-    background: #eaecef;
+#InstructionsBody {
+    color: rgb(61,61,61);
+}
+
+#InstructionsBody .kbd {
+  padding: 1px 6px;
+  border: none;
+  color: rgb(61,61,61);
+}
+
+#InstructionsBody .dot {
+  display: inline-block;
+  width: 8px; height: 8px;
+  margin-right: 6px;
+  border-radius: 999px;
+  background: #6b7280; /* idle default */
+  vertical-align: middle;
+}
+#InstructionsBody .dot-live { background: #22c55e; }  /* green */
+#InstructionsBody .dot-idle { background: #6b7280; }  /* gray */
+
+/* Buttons */
+#SettingsButtons QPushButton {
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid #2a3244;
+  background: #121722;
+}
+#SettingsButtons QPushButton[variant="primary"] {
+  border-color: #2563eb;
+  background: #1a2950;
+  font-weight: bold;
+}
+#SettingsButtons QPushButton:hover {
+  filter: brightness(1.08);
+}
+#SettingsButtons QPushButton:pressed {
+  transform: translateY(1px);
 }

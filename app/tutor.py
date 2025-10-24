@@ -215,6 +215,7 @@ class AuthManager:
         self.user = None
         self.session = None
         self.service_name = "TutorApp"
+        self._restored_once = False
         self.init_supabase()
     
     def init_supabase(self):
@@ -243,6 +244,9 @@ class AuthManager:
     
     def restore_session(self):
         """Restore session from secure storage"""
+        if self._restored_once:
+            return False
+        self._restored_once = True
         try:
             session_data = keyring.get_password(self.service_name, "session")
             if session_data:
@@ -498,7 +502,7 @@ class TutorTray(QSystemTrayIcon):
         menu = QMenu()
         
         # Ask action (Start/Stop Asking)
-        self.ask_action = QAction("Start Asking (F9)")
+        self.ask_action = QAction("Start Asking")
         self.ask_action.triggered.connect(self.on_ask)
         menu.addAction(self.ask_action)
 
@@ -654,13 +658,13 @@ class TutorTray(QSystemTrayIcon):
                 print(f"UI: Set should_send_audio to {self._rt_should_send_audio}")
                 self._start_recording_realtime()
         else:
-            self.ask_action.setText("Start Asking (F9)")
+            self.ask_action.setText("Start Asking")
             print("UI: Exiting asking mode")
             self._stop_recording_and_process()
 
     def _start_recording_realtime(self):
         print(f"[{timestamp()}] Recording: Start requested (realtime)")
-        self.ask_action.setText("Stop Asking (F9)")
+        self.ask_action.setText("Stop Asking")
         if self.is_recording:
             print("Recording: Already recording; ignoring start")
             return
