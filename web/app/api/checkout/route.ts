@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { stripe } from "../../lib/stripe";
-
+//import { stripe } from "../../lib/stripe";
+/*
 export const runtime = "nodejs";
 
 export async function POST(req: NextRequest) {
@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
     if (!price) {
       return NextResponse.json({ error: "Price not found" }, { status: 400 });
     }
-
+    
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
       line_items: [{ price, quantity: 1 }],
@@ -32,9 +32,10 @@ export async function POST(req: NextRequest) {
       // If your user already has a Stripe customer id:
       // customer: customerId,
     });
-
+  
     return NextResponse.json({ url: session.url });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
+*/
