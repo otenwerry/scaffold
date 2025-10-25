@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { stripe } from "../../../lib/stripe";
-import Stripe from "stripe";
-
+//import { stripe } from "../../../lib/stripe";
+//import Stripe from "stripe";
+/*
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic"; // ensure edge caching doesn't interfere
 
@@ -51,3 +51,4 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
+*/
