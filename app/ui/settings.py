@@ -5,9 +5,16 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt
 
+from PySide6.QtGui import QIcon
+
+from pathlib import Path
+icon_path = Path(__file__).parent.parent / "icon.png"
+icon = QIcon(str(icon_path))
+
 class SettingsDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
+        self.setWindowIcon(icon)
         self.setObjectName("SettingsDialog")
         self.setWindowTitle("Scaffold Settings")
         self.setMinimumSize(560, 400)

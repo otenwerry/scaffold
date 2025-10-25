@@ -78,10 +78,21 @@ app = BUNDLE(
     coll,
     name='Tutor.app',
     icon='logos/icon.icns',
+<<<<<<< HEAD
+    bundle_identifier='com.scaffold.tutor4',
+    info_plist={
+        'NSHighResolutionCapable': 'True',
+        'CFBundleIconFile': 'icon.icns',
+        'CFBundleIconName': 'icon',
+        "CFBundleVersion": "2",
+        'NSMicrophoneUsageDescription': 'Tutor4 needs microphone access to record your questions.',
+        'NSScreenCaptureUsageDescription': 'Tutor4 needs screen access to see what you are asking about.',
+=======
     bundle_identifier='com.yourcompany.tutor',
     info_plist={
         'NSHighResolutionCapable': 'True',
         'NSMicrophoneUsageDescription': 'Tutor needs microphone access to record your questions.',
         'NSScreenCaptureUsageDescription': 'Tutor needs screen access to see what you are asking about.',
+>>>>>>> main
     },
 )
