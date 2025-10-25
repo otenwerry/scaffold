@@ -47,7 +47,7 @@ exe = EXE(
     pyz,
     a.scripts,
     exclude_binaries=True,
-    name='Tutor4',
+    name='Tutor',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -71,13 +71,14 @@ coll = COLLECT(
     strip=False,
     upx=False,
     upx_exclude=[],
-    name='Tutor4'
+    name='Tutor'
 )
 
 app = BUNDLE(
     coll,
-    name='Tutor4.app',
+    name='Tutor.app',
     icon='logos/icon.icns',
+<<<<<<< HEAD
     bundle_identifier='com.scaffold.tutor4',
     info_plist={
         'NSHighResolutionCapable': 'True',
@@ -86,5 +87,12 @@ app = BUNDLE(
         "CFBundleVersion": "2",
         'NSMicrophoneUsageDescription': 'Tutor4 needs microphone access to record your questions.',
         'NSScreenCaptureUsageDescription': 'Tutor4 needs screen access to see what you are asking about.',
+=======
+    bundle_identifier='com.yourcompany.tutor',
+    info_plist={
+        'NSHighResolutionCapable': 'True',
+        'NSMicrophoneUsageDescription': 'Tutor needs microphone access to record your questions.',
+        'NSScreenCaptureUsageDescription': 'Tutor needs screen access to see what you are asking about.',
+>>>>>>> main
     },
 )
