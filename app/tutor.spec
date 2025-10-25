@@ -93,6 +93,5 @@ app = BUNDLE(
         'NSHighResolutionCapable': 'True',
         'NSMicrophoneUsageDescription': 'Tutor needs microphone access to record your questions.',
         'NSScreenCaptureUsageDescription': 'Tutor needs screen access to see what you are asking about.',
->>>>>>> main
     },
 )
