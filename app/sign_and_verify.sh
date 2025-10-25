@@ -6,6 +6,7 @@ ENT="entitlements.plist"
 SIGN="Developer ID Application: Caroline Smyth (AF38K5WH45)"
 # Clear quarantine
 /usr/bin/xattr -r -d com.apple.quarantine "$APP" || true
+
 # Sign nested code first (frameworks, dylibs, .so, helpers)
 # (Exclude the main executable; sign it separately with entitlements)
 while IFS= read -r -d '' f; do
