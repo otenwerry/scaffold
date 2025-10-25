@@ -60,7 +60,7 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon='logos/icon.icns', 
+    icon='logos/icon2.icns', 
 )
 
 coll = COLLECT(
@@ -77,11 +77,13 @@ coll = COLLECT(
 app = BUNDLE(
     coll,
     name='Tutor4.app',
-    icon='logos/icon.icns',
+    icon='logos/icon2.icns',
     bundle_identifier='com.scaffold.tutor4',
     info_plist={
         'NSHighResolutionCapable': 'True',
-        'CFBundleIconFile': 'icon.icns',
+        'CFBundleIconFile': 'icon2.icns',
+        'CFBundleIconName': 'icon',
+        "CFBundleVersion": "2",
         'NSMicrophoneUsageDescription': 'Tutor4 needs microphone access to record your questions.',
         'NSScreenCaptureUsageDescription': 'Tutor4 needs screen access to see what you are asking about.',
     },
