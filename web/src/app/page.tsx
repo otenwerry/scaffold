@@ -1,6 +1,6 @@
 import Header from "../components/Header";
 import { Button } from "@/components/ui/button";
-import { Card, CardTitle, CardContent, CardFooter, CardDescription } from "@/components/ui/card";
+import { Card, CardTitle, CardContent, CardFooter } from "@/components/ui/card";
 import Link from "next/link";
 
 export default function Home() {
@@ -22,7 +22,7 @@ export default function Home() {
             <Button 
               className="futuristic-button text-white text-lg px-4 py-2 h-auto"
             >
-              <a href="/Tutor.dmg" download>
+              <a href="/get_started">
                 Try it out
               </a>
             </Button>
