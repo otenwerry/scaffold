@@ -11,7 +11,7 @@ export default function Header() {
 
   return (
     <>
-    <header className="sticky top-0 z-50 w-full bg-white/70 backdrop-blur">
+    <header className="fixed top-0 z-50 w-full bg-white/70 backdrop-blur">
       <div className={`mx-auto flex h-14 max-w-6xl items-center justify-between px-4 sm:h-16 sm:px-6  
         ${isMenuOpen ? "" : "border-b border-gray-100"}`}>
         <Link href="/" className="text-2xl font-semibold tracking-tight text-gray-900">Scaffold</Link>
