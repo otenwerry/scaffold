@@ -41,9 +41,9 @@ export default function Home() {
               </a>
             </Button>
             
-            <p className="text-sm text-gray-600 max-w-md mx-auto">
-              After downloading, open the installer and drag Scaffold into the Applications folder next to it. Drag it into your dock next to your other apps as well. <br />
-              Then, open System Settings and navigate to Privacy & Security in the side bar. Add Scaffold to Accessibility, Input Monitoring, and Screen & System Audio Recording.
+            <p className="text-lg md:text-lg text-gray-600 max-w-3xl mx-auto leading-relaxed text-left">
+              - After downloading, open the installer and drag Scaffold into the Applications folder next to it. Drag it into your dock next to your other apps as well. <br />
+              - Then, open System Settings and navigate to Privacy & Security in the side bar. Add Scaffold to Accessibility, Input Monitoring, and Screen & System Audio Recording.
             </p>
           </div>
         </div>
