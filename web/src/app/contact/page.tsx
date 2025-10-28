@@ -7,12 +7,17 @@ export default function Contact() {
 
       <div className="wireframe-bg"></div>
 
-      <main className="relative z-10 flex flex-col items-center justify-center min-h-[calc(100vh-4rem)] px-4">
-        <div className="max-w-4xl mx-auto background-white max-h-[800px]">
-          <iframe src="https://docs.google.com/forms/d/e/1FAIpQLSduVzouT2-1FGfuQSuQp9IKymfPvfwZDLnVt5yxo5zLm70Kig/viewform?embedded=true" width={800} height={700} frameBorder="0" title="Contact Form" style={{ background: "white" }}>Loading…</iframe>
+      <main className="relative z-10 flex flex-col items-center justify-center h-screen">
+        <div className="overflow-visible rounded-lg relative w-full">
+          <iframe 
+            src="https://docs.google.com/forms/d/e/1FAIpQLSduVzouT2-1FGfuQSuQp9IKymfPvfwZDLnVt5yxo5zLm70Kig/viewform?embedded=true" 
+            className="w-full h-[700px] border-0 bg-white/80 min-w-[50vw] rounded-lg md:pt-5"
+            title="Contact Form"
+          >
+            Loading…
+          </iframe>
         </div>
       </main>
-
     </div>
   );
 }
