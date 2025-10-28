@@ -31,7 +31,7 @@ export default function Home() {
           </p>
           
           
-          <div className="space-y-6 pt-8">
+          <div className="space-y-6 pt-6">
             <Button 
               asChild
               className="futuristic-button text-white text-lg px-8 py-4 h-auto"
