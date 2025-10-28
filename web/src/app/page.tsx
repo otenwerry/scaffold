@@ -23,7 +23,7 @@ export default function Home() {
               className="futuristic-button text-white text-lg px-4 py-2 h-auto"
             >
               <a href="/Tutor.dmg" download>
-                Try it out!!!!
+                Try it out
               </a>
             </Button>
             
