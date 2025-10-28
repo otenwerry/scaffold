@@ -7,10 +7,6 @@ export default function Home() {
       <Header />
       
       <div className="wireframe-bg"></div>
-      <div className="wireframe-grid"></div>
-      <div className="wireframe-element"></div>
-      <div className="wireframe-element"></div>
-      <div className="wireframe-element"></div>
       
       <main className="relative z-10 flex flex-col items-center justify-center min-h-screen px-4">
         <div className="text-center space-y-8 max-w-4xl mx-auto">
