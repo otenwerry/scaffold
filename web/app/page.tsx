@@ -7,7 +7,6 @@ export default function Home() {
       <main className="mt-50 flex flex-col items-center justify-center">
         <a href="../downloads/Tutor-mac.zip" className="text-blue-500">Download</a>
         <p className="text-sm text-gray-500">First time? After installing, right-click the app and choose &quot;Open&quot;.</p>
-        <a href="/pricing" className="text-blue-500">Subscribe</a>
       </main>
     </div>
   );
