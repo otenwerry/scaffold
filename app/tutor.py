@@ -2,10 +2,10 @@ import sys
 import os
 if getattr(sys, 'frozen', False):
     try:
-        log_path = os.path.expanduser("~/Library/Logs/Tutor.log")
+        log_path = os.path.expanduser("~/Library/Logs/Scaffold.log")
         sys.stdout = open(log_path, 'a', buffering=1)
         sys.stderr = sys.stdout
-        print("\n--- Tutor started (frozen) ---")
+        print("\n--- Scaffold started (frozen) ---")
     except Exception as e:
         sys.stdout = open(os.devnull, 'w')
         sys.stderr = sys.stdout
@@ -76,7 +76,7 @@ def timestamp():
 class OTPDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Tutor Sign In")
+        self.setWindowTitle("Scaffold Sign In")
         self.setFixedWidth(400)
         self.setMinimumHeight(200)
         
@@ -214,7 +214,7 @@ class AuthManager:
         self.supabase: Client = None
         self.user = None
         self.session = None
-        self.service_name = "TutorApp"
+        self.service_name = "ScaffoldApp"
         self._restored_once = False
         self.init_supabase()
     
@@ -378,13 +378,13 @@ class TutorTray(QSystemTrayIcon):
                 self.auth_manager.session = self.auth_manager.supabase.auth.get_session()
                 self.auth_manager.save_session()
                 
-                self.showMessage("Tutor", f"Signed in as {self.auth_manager.user.email}")
+                self.showMessage("Scaffold", f"Signed in as {self.auth_manager.user.email}")
                 self.update_menu_auth_state()
             else:
-                self.showMessage("Tutor", "Authentication failed")
+                self.showMessage("Scaffold", "Authentication failed")
         else:
             if not self.auth_manager.is_authenticated():
-                self.showMessage("Tutor", "Authentication required to use Tutor")
+                self.showMessage("Scaffold", "Authentication required to use Scaffold")
   
     def update_menu_auth_state(self):
         """Update menu items based on auth state"""
@@ -538,7 +538,7 @@ class TutorTray(QSystemTrayIcon):
     def sign_out(self):
         self.auth_manager.sign_out()
         self.update_menu_auth_state()
-        self.showMessage("Tutor", "Signed out")
+        self.showMessage("Scaffold", "Signed out")
     
     def show_settings(self):
         settings = self._settings_dialog
@@ -650,7 +650,7 @@ class TutorTray(QSystemTrayIcon):
             if not session_healthy:
                 print("UI: Starting new realtime session")
                 self.update_status.emit("Connecting...")
-                self.show_notification.emit("Tutor", "", "Connecting...")
+                self.show_notification.emit("Scaffold", "", "Connecting...")
                 self._rt_future = self.executor.submit(self._start_realtime_session)
             else:
                 print("UI: Reusing existing realtime session")
@@ -680,7 +680,7 @@ class TutorTray(QSystemTrayIcon):
         self._stream.start()
         self.is_recording = True
         self.update_status.emit("Recording")
-        self.show_notification.emit("Tutor", "", "Asking…")
+        self.show_notification.emit("Scaffold", "", "Asking…")
         print(f"[{timestamp()}] Recording: Started (realtime)")
 
     def _start_realtime_session(self):
@@ -901,7 +901,7 @@ class TutorTray(QSystemTrayIcon):
                             
                             # Show notification
                             self.show_notification.emit(
-                                "Tutor",
+                                "Scaffold",
                                 f"Q: {user_transcript[:50]}..." if user_transcript else "",
                                 f"A: {assistant_response[:100]}..." if assistant_response else ""
                             )
@@ -1052,7 +1052,7 @@ class TutorTray(QSystemTrayIcon):
         self.executor.submit(self._finalize_realtime, png_bytes)
 
         self.update_status.emit("Thinking...")
-        self.show_notification.emit("Tutor", "", "Thinking...")
+        self.show_notification.emit("Scaffold", "", "Thinking...")
         return
 
 
