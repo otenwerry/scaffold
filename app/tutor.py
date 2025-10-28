@@ -362,7 +362,7 @@ class TutorTray(QSystemTrayIcon):
         
         # Show initial notification
         if self.auth_manager.is_authenticated():
-            print(f"App is running. Press F9 to ask a question. Signed in as {self.auth_manager.user.email}")
+            print(f"App is running. Press 'Start Asking' to ask a question. Signed in as {self.auth_manager.user.email}")
         else:
             print("App is running. Please sign in to continue.")
 
@@ -915,7 +915,7 @@ class TutorTray(QSystemTrayIcon):
                             self._stream = None
                             self.is_recording = False
                             self._rt_should_send_audio = False
-                            self.ask_action.setText("Start Asking (F9)")
+                            self.ask_action.setText("Start Asking")
                             self.update_status.emit("Thinking...")
                             print(f"[{timestamp()}] Realtime: Limit reached")
                         elif etype == "error":
