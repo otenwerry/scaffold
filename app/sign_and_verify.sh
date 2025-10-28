@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
-APP="dist/Tutor.app"
-APP_BIN="$APP/Contents/MacOS/Tutor"
+APP="dist/Scaffold.app"
+APP_BIN="$APP/Contents/MacOS/Scaffold"
 ENT="entitlements.plist"
 SIGN="Developer ID Application: Caroline Smyth (AF38K5WH45)"
 # Clear quarantine

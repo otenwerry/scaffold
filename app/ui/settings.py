@@ -74,8 +74,8 @@ class SettingsDialog(QDialog):
             <p><b>Troubleshooting</b></p>
             <p>Scaffold should be able to hear what you say, see your screen, and respond out loud. If it can't, try the below! </p>
             <ul style="list-style-type:none; margin-left: -30px;">
-                <li>Mic issues: Check System Settings → Privacy & Security → Microphone → enable for "Tutor"</li>
-                <li>Screen issues: Check System Settings → Privacy & Security → Screen Recording → enable for "Tutor"</li>
+                <li>Mic issues: Check System Settings → Privacy & Security → Microphone → enable for "Scaffold"</li>
+                <li>Screen issues: Check System Settings → Privacy & Security → Screen Recording → enable for "Scaffold"</li>
                 <li>App not responsive: Fully quit and reopen
             </ul>
             </div>

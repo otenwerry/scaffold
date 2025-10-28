@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
-APP="dist/Tutor.app"
+APP="dist/Scaffold.app"
 KEYCHAIN_PROFILE="AC_NOTARY"
-VOL="Tutor Installer"
-DMG="Tutor.dmg"
+VOL="Scaffold Installer"
+DMG="Scaffold.dmg"
 OUTDIR="."
 # 1) Notarize & staple the .app (submit a ZIP of the app)
-/usr/bin/ditto -c -k --keepParent "$APP" "Tutor-app.zip"
-/usr/bin/xcrun notarytool submit "Tutor-app.zip" --keychain-profile "$KEYCHAIN_PROFILE" --wait
+/usr/bin/ditto -c -k --keepParent "$APP" "Scaffold-app.zip"
+/usr/bin/xcrun notarytool submit "Scaffold-app.zip" --keychain-profile "$KEYCHAIN_PROFILE" --wait
 /usr/bin/xcrun stapler staple "$APP"
 /usr/bin/xcrun stapler validate "$APP"
 # 2) Build DMG from the already-stapled app
