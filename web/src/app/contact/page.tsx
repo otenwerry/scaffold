@@ -13,10 +13,13 @@ export default function Contact() {
 
       <main className="relative z-10 flex flex-col items-center justify-start h-screen px-4 pt-20">
         <Card>
-          <CardTitle className="text-4xl font-bold text-gray-900 leading-relaxed text-center">Contact</CardTitle>
-          <CardContent className="text-lg md:text-lg text-gray-600 max-w-3xl mx-auto leading-relaxed text-left">
-          Say hello at our <Link href="https://forms.gle/5MTK88AkJx8NLUVt8" target="_blank" className="text-blue-500 hover:text-blue-700">form</Link>! Feedback/bugs/questions are all welcome. 
-          </CardContent>
+          <CardTitle className="text-4xl font-bold text-gray-900 leading-relaxed text-center">Get Started</CardTitle>
+          <CardContent className="text-lg md:text-lg text-gray-600 max-w-3xl mx-auto leading-relaxed text-left italic">
+              1. Once download is complete, open the installer by clicking on the downloaded file. <br />
+              2. Drag Scaffold into the Applications folder next to it, as well as your Dock next to other apps. <br />
+              3. Then, open System Settings and navigate to Privacy & Security in the side bar. <br />
+              4. Add Scaffold to Accessibility, Input Monitoring, and Screen & System Audio Recording.
+            </CardContent>
         </Card>
       </main>
     </div>
