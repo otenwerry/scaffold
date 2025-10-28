@@ -44,7 +44,7 @@ export default function Header() {
           <Link href="../about" className="text-lg text-gray-600 hover:text-gray-900 transition-colors">
             About
           </Link>
-          <Link href="../contact" className="text-lg text-gray-600 hover:text-gray-900 transition-colors">
+          <Link href="../get_started" className="text-lg text-gray-600 hover:text-gray-900 transition-colors">
             Get Started
           </Link>
         </nav>
@@ -52,7 +52,7 @@ export default function Header() {
       <div className={`md:hidden absolute top-full left-0 right-0 z-50 overflow-hidden transition-all duration-300 ${
           isMenuOpen ? 'max-h-96 opacity-100 translate-y-0' : 'max-h-0 opacity-0 -translate-y-2'
         }`}>
-          <div className="bg-white/90 backdrop-blur border-b border-gray-100">
+          <div className="bg-white backdrop-blur border-b border-gray-100">
             <nav className="mx-auto max-w-6xl px-4 py-4 space-y-2">
               <Link 
                 href="../about" 
