@@ -62,7 +62,7 @@ export default function Header() {
                 About
               </Link>
               <Link 
-                href="../contact" 
+                href="../get_started" 
                 className="block text-gray-900 hover:text-gray-600 hover:bg-gray-50 transition-all text-lg py-3 px-2 rounded-md"
                 onClick={toggleMenu}
               >
