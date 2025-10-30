@@ -12,13 +12,16 @@ OUTDIR="."
 /usr/bin/xcrun stapler validate "$APP"
 # 2) Build DMG from the already-stapled app
 TMPDIR="$(/usr/bin/mktemp -d)"
+VOL="Scaffold Installer"
 /bin/mkdir -p "$TMPDIR/$VOL"
 /bin/ln -s /Applications "$TMPDIR/$VOL/Applications"
-/bin/cp -R "$APP" "$TMPDIR/$VOL/"
+
+/usr/bin/ditto "$APP" "$TMPDIR/$VOL/Scaffold.app"
+
+# sanity check before sealing the DMG:
+codesign --verify --deep --strict --verbose=2 "$TMPDIR/$VOL/Scaffold.app"
+codesign -d --entitlements - "$TMPDIR/$VOL/Scaffold.app/Contents/MacOS/Scaffold"
+
+# create the DMG
 /usr/bin/hdiutil create -volname "$VOL" -srcfolder "$TMPDIR/$VOL" -ov -format UDZO "$OUTDIR/$DMG"
 /bin/rm -rf "$TMPDIR"
-# 3) Notarize & staple the DMG
-/usr/bin/xcrun notarytool submit "$OUTDIR/$DMG" --keychain-profile "$KEYCHAIN_PROFILE" --wait
-/usr/bin/xcrun stapler staple "$OUTDIR/$DMG"
-/usr/bin/xcrun stapler validate "$OUTDIR/$DMG"
-echo "Notarized & stapled: $APP and $DMG"
