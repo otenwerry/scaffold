@@ -78,7 +78,7 @@ app = BUNDLE(
     coll,
     name='Scaffold.app',
     icon='logos/icon.icns',
-    bundle_identifier='com.yourcompany.scaffold',
+    bundle_identifier='com.yourcompany.scaffoldv1.0.1',
     info_plist={
         'NSHighResolutionCapable': 'True',
         'NSMicrophoneUsageDescription': 'Scaffold needs microphone access to record your questions.',
