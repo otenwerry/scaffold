@@ -16,7 +16,7 @@ export default function Home() {
            Voice AI for knowledge work
           </CardTitle>
           <CardContent className="text-lg md:text-lg text-gray-600 max-w-3xl mx-auto leading-relaxed text-left">
-          Scaffold hears what you say, sees your screen, and responds in real time
+          Scaffold hears what you say, sees your screen, and responds out loud in real time
           </CardContent>
           <CardFooter className="space-y-5 flex flex-col items-center justify-center">
             <Button 
