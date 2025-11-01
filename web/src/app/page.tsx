@@ -26,10 +26,6 @@ export default function Home() {
                 Try it out
               </a>
             </Button>
-            
-            <CardContent className="text-lg md:text-lg text-gray-600 max-w-3xl mx-auto leading-relaxed text-left">
-            Say hello at our <Link href="https://forms.gle/5MTK88AkJx8NLUVt8" target="_blank" className="text-blue-500 hover:text-blue-700">form</Link>! Feedback/bugs/questions are all welcome. 
-            </CardContent>
           </CardFooter>
         </Card>
       </main>
