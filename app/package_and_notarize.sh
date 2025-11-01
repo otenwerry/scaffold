@@ -14,7 +14,7 @@ OUTDIR="."
 TMPDIR="$(/usr/bin/mktemp -d)"
 /bin/mkdir -p "$TMPDIR/$VOL"
 /bin/ln -s /Applications "$TMPDIR/$VOL/Applications"
-/bin/cp -R "$APP" "$TMPDIR/$VOL/"
+/usr/bin/ditto "$APP" "$TMPDIR/$VOL/Scaffold.app"
 /usr/bin/hdiutil create -volname "$VOL" -srcfolder "$TMPDIR/$VOL" -ov -format UDZO "$OUTDIR/$DMG"
 /bin/rm -rf "$TMPDIR"
 # 3) Notarize & staple the DMG

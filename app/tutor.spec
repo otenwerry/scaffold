@@ -78,9 +78,11 @@ app = BUNDLE(
     coll,
     name='Scaffold.app',
     icon='logos/icon.icns',
-    bundle_identifier='com.yourcompany.scaffoldv1.0.1',
+    bundle_identifier='com.scaffold.tutor',
     info_plist={
         'NSHighResolutionCapable': 'True',
+        'CFBundleShortVersionString': '1.0.1',
+        'CFBundleVersion': '101',
         'NSMicrophoneUsageDescription': 'Scaffold needs microphone access to record your questions.',
         'NSScreenCaptureUsageDescription': 'Scaffold needs screen access to see what you are asking about.',
     },

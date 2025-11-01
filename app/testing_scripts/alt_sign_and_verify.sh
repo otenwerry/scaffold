@@ -1,3 +1,6 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
 APP="dist/Scaffold.app"
 BIN="$APP/Contents/MacOS/Scaffold"
 ENT="$(pwd)/entitlements.plist"
