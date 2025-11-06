@@ -38,6 +38,7 @@ from websockets.asyncio.client import connect as ws_connect
 import ssl
 import certifi
 from datetime import datetime
+from queue import Queue, Empty
 
 from Foundation import NSURL
 from Vision import (
@@ -317,6 +318,12 @@ class TutorTray(QSystemTrayIcon):
         self._rt_should_send_audio = False
         self._ocr_future = None
         self._ocr_text_cached = None
+
+        self._out_stream = None
+        self._out_queue = None
+        self._out_thread = None
+        self._out_started = False
+        self._jitter_target_bytes = int(SR * 0.2 * 4) #400ms buffer
  
         #pipeline state
         self.executor = ThreadPoolExecutor(max_workers=2)
@@ -578,6 +585,7 @@ class TutorTray(QSystemTrayIcon):
             self.executor.shutdown(wait=False)
             print("Quit: Executor shut down")
         print("Quit: Exiting app")
+        self._stop_streaming_playback()
         QApplication.quit()
     
     async def _cancel_writer_and_close(self):
@@ -936,24 +944,25 @@ class TutorTray(QSystemTrayIcon):
                         elif etype == "response.audio.delta":
                             delta = event.get("delta", "")
                             if delta:
-                                if not current_audio and not self._first_audio_played:
-                                    self._first_audio_played = True
-                                    self.audio_started.emit()
+                                # === STREAMING PLAYBACK: push PCM16 bytes to output queue ===
+                                try:
+                                    pcm_bytes = base64.b64decode(delta)
+                                except Exception:
+                                    pcm_bytes = b""
+                                # On first chunk, set up streaming playback
+                                if self._out_stream is None:
                                     print(f"[{timestamp()}] Realtime: First audio chunk received")
-                                current_audio.extend(base64.b64decode(delta))
+                                    self._start_streaming_playback()
+                                if self._out_queue is not None and pcm_bytes:
+                                    try:
+                                        self._out_queue.put_nowait(pcm_bytes)
+                                    except Exception:
+                                        pass
                         elif etype == "response.text.delta":
                             delta = event.get("delta", "")
                             assistant_response += delta
                         elif etype == "response.audio.done":
-                            if current_audio:
-                                wav_io = io.BytesIO()
-                                with wave.open(wav_io, 'wb') as wf:
-                                    wf.setnchannels(1)
-                                    wf.setsampwidth(2)
-                                    wf.setframerate(24000)
-                                    wf.writeframes(bytes(current_audio))
-                                self.play_audio(wav_io.getvalue(), wait=False)
-                                current_audio = bytearray()
+                            self._stop_streaming_playback()
                         elif etype == "response.done":
                             print(f"[{timestamp()}] Realtime: Response complete")
                             self.update_status.emit("Ready")
@@ -968,6 +977,7 @@ class TutorTray(QSystemTrayIcon):
                             assistant_response = ""
                             current_audio = bytearray()
                         elif etype == "limit.reached":
+                            self._stop_streaming_playback()
                             if self._stream:
                                 self._stream.stop()
                                 self._stream.close()
@@ -978,6 +988,7 @@ class TutorTray(QSystemTrayIcon):
                             self.update_status.emit("Thinking...")
                             print(f"[{timestamp()}] Realtime: Limit reached")
                         elif etype == "error":
+                            self._stop_streaming_playback()
                             print(f"Realtime: Error event: {event}")
                             error_msg = event.get("error", {}).get("message", "Unknown error")
                             self.show_error.emit(f"Error: {error_msg}")
@@ -1026,7 +1037,8 @@ class TutorTray(QSystemTrayIcon):
                     writer_task.cancel()
                     self._rt_session_active = False
                     self._rt_writer_task = None
-                    
+                    self._stop_streaming_playback()
+
         except Exception as e:
             print(f"Realtime: Session error: {e}")
             self.show_error.emit(f"Connection error: {e}")
@@ -1055,6 +1067,99 @@ class TutorTray(QSystemTrayIcon):
             print(f"[{timestamp()}] Audio: Playback started")
         except Exception as e:
             print(f"Audio playback error: {e}")
+
+    def _start_streaming_playback(self):
+        if self._out_stream is not None:
+            return  # already active this response
+        self._out_queue = Queue()
+        self._out_started = False
+
+        # 24kHz mono PCM16 --> use RawOutputStream so we can write bytes directly
+        self._out_stream = sd.RawOutputStream(
+            samplerate=SR,
+            channels=1,
+            dtype='int16',
+        )
+        self._out_stream.start()
+
+        def _writer():
+            q = self._out_queue
+            out_stream = self._out_stream
+            try:
+                buf = bytearray()
+                while True:
+                    try:
+                        chunk = q.get(timeout=0.1)
+                    except Empty:
+                        # If we already started and have data, try to flush what we have
+                        if self._out_started and buf:
+                            out_stream.write(bytes(buf))
+                            buf.clear()
+                        continue
+
+                    if chunk is None:
+                        # Sentinel: flush any remaining and exit
+                        if buf:
+                            out_stream.write(bytes(buf))
+                            buf.clear()
+                        break
+
+                    # Accumulate bytes
+                    buf.extend(chunk)
+
+                    # Hold until jitter buffer reached, then begin writing continuously
+                    if not self._out_started and len(buf) >= self._jitter_target_bytes:
+                        self._out_started = True
+                        # Fire audio_started only once (matches prior semantics)
+                        if not self._first_audio_played:
+                            self._first_audio_played = True
+                            try:
+                                self.audio_started.emit()
+                            except Exception:
+                                pass
+
+                    # After start, write out in chunks as they arrive
+                    if self._out_started and len(buf) >= (BLOCKSIZE * 2):  # ~20ms worth
+                        out_stream.write(bytes(buf))
+                        buf.clear()
+
+                # End-of-stream: writer exiting
+            except Exception as e:
+                print(f"Streaming audio writer error: {e}")
+            finally:
+                try:
+                    if out_stream:
+                        out_stream.stop()
+                        out_stream.close()
+                except Exception:
+                    pass
+
+        self._out_thread = threading.Thread(target=_writer, daemon=True)
+        self._out_thread.start()
+    
+    def _stop_streaming_playback(self):
+        if not self._out_thread:
+            return
+        try:
+            if self._out_queue:
+                self._out_queue.put_nowait(None)  # sentinel
+        except Exception:
+            pass
+        try:
+            self._out_thread.join(timeout=2.0)
+        except Exception as e:
+            print(f"Streaming audio stop join error: {e}")
+
+        # If still alive, don't nuke shared fields—avoid races with the writer
+        if self._out_thread and self._out_thread.is_alive():
+            print("Streaming audio writer still running after timeout; leaving fields intact to avoid races.")
+            return
+
+        # Writer has stopped; now it's safe to clear
+        self._out_thread = None
+        self._out_queue = None
+        self._out_stream = None
+        self._out_started = False
 
     def _stop_recording_and_process(self):
         print(f"[{timestamp()}] Recording: Stop requested")
