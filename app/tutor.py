@@ -38,6 +38,7 @@ from websockets.asyncio.client import connect as ws_connect
 import ssl
 import certifi
 from datetime import datetime
+from queue import Queue, Empty
 
 from Foundation import NSURL
 from Vision import (
@@ -288,7 +289,6 @@ class AuthManager:
     
 
         
-#class TutorTray(rumps.App):
 class TutorTray(QSystemTrayIcon):
     show_notification = Signal(str, str, str)
     update_status = Signal(str)
@@ -316,6 +316,14 @@ class TutorTray(QSystemTrayIcon):
         self._rt_session_active = False
         self._rt_writer_task = None
         self._rt_should_send_audio = False
+        self._ocr_future = None
+        self._ocr_text_cached = None
+
+        self._out_stream = None
+        self._out_queue = None
+        self._out_thread = None
+        self._out_started = False
+        self._jitter_target_bytes = int(SR * 0.2 * 4) #400ms buffer
  
         #pipeline state
         self.executor = ThreadPoolExecutor(max_workers=2)
@@ -577,6 +585,7 @@ class TutorTray(QSystemTrayIcon):
             self.executor.shutdown(wait=False)
             print("Quit: Executor shut down")
         print("Quit: Exiting app")
+        self._stop_streaming_playback()
         QApplication.quit()
     
     async def _cancel_writer_and_close(self):
@@ -641,6 +650,8 @@ class TutorTray(QSystemTrayIcon):
         if not self.is_recording:
             print("UI: Entering asking mode")
             self.first_audio_played = False
+            self._ocr_future = None
+            self._ocr_text_cached = None
             ws_dead = (self._rt_ws is None)
             try:
                 ws_closed = bool(getattr(self._rt_ws, "closed", False))
@@ -682,6 +693,39 @@ class TutorTray(QSystemTrayIcon):
         self.update_status.emit("Recording")
         self.show_notification.emit("Scaffold", "", "Asking…")
         print(f"[{timestamp()}] Recording: Started (realtime)")
+        try:
+            with mss.mss() as sct:
+                img = sct.grab(sct.monitors[0])
+                png_bytes = mss.tools.to_png(img.rgb, img.size)
+            print(f"[{timestamp()}] Screenshot: Captured for OCR")
+        except Exception as e:
+            print(f"Screenshot: Error occurred: {e}")
+            png_bytes = b""
+    
+        def _run_ocr_sync_wrapper(png):
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                if APPLE_OCR:
+                    txt = loop.run_until_complete(self._apple_ocr(png))
+                else:
+                    txt = loop.run_until_complete(self._ocr(png))
+                return txt
+            finally:
+                loop.close()
+
+        # Submit OCR to executor and cache the result when done
+        self._ocr_future = self.executor.submit(_run_ocr_sync_wrapper, png_bytes)
+
+        def _cache_ocr_result(fut):
+            try:
+                txt = fut.result() or ""
+                self._ocr_text_cached = txt
+                print(f"[{timestamp()}] OCR: Completed, {len(txt)} chars")
+            except Exception as e:
+                print(f"OCR: Future error: {e}")
+
+        self._ocr_future.add_done_callback(_cache_ocr_result)
 
     def _start_realtime_session(self):
         print("Realtime: Starting session in worker thread")
@@ -699,32 +743,56 @@ class TutorTray(QSystemTrayIcon):
             self._rt_ws = None
             print("Realtime: Session ended")
 
-    def _finalize_realtime(self, screenshot):
-        print(f"[{timestamp()}] Realtime: Finalizing with OCR")
+    def _finalize_realtime(self):
+        print(f"[{timestamp()}] Realtime: Finalizing with OCR (using early result if available)")
 
-        # Run OCR to completion in this worker thread
+        # Run inside a worker thread (as before). Use a local loop only if we need to do last-chance OCR.
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         try:
-            if APPLE_OCR:
-                ocr_text = loop.run_until_complete(self._apple_ocr(screenshot))
-            else:
-                ocr_text = loop.run_until_complete(self._ocr(screenshot))
-            print(f"[{timestamp()}] Realtime: OCR completed, {len(ocr_text)} chars")
+            ocr_text = None
 
-            # Prepare a coroutine that (1) sends screen_context if present, then (2) sends client.end
+            # 1) If we already cached it from the early OCR, use that.
+            if isinstance(self._ocr_text_cached, str):
+                ocr_text = self._ocr_text_cached
+
+            # 2) Else, if a future is running, wait for it to finish (this is now the common path if user spoke briefly).
+            elif self._ocr_future is not None:
+                try:
+                    ocr_text = self._ocr_future.result() or ""
+                    self._ocr_text_cached = ocr_text
+                    print(f"[{timestamp()}] Realtime: OCR future joined at finalize, {len(ocr_text)} chars")
+                except Exception as e:
+                    print(f"Realtime: OCR future error at finalize: {e}")
+                    ocr_text = ""  # fall through to sending client.end anyway
+
+            # 3) Defensive fallback: if no early OCR was started (shouldn't happen), do a last-chance screenshot+OCR.
+            else:
+                print(f"[{timestamp()}] Realtime: No early OCR future; taking fallback screenshot")
+                try:
+                    with mss.mss() as sct:
+                        img = sct.grab(sct.monitors[0])
+                        png_bytes = mss.tools.to_png(img.rgb, img.size)
+                    if APPLE_OCR:
+                        ocr_text = loop.run_until_complete(self._apple_ocr(png_bytes))
+                    else:
+                        ocr_text = loop.run_until_complete(self._ocr(png_bytes))
+                    self._ocr_text_cached = ocr_text or ""
+                    print(f"[{timestamp()}] Realtime: Fallback OCR completed, {len(self._ocr_text_cached)} chars")
+                except Exception as e:
+                    print(f"Realtime: Fallback screenshot/OCR error: {e}")
+                    ocr_text = ""
+
+            # 4) Prepare a coroutine that (1) sends screen_context if present, then (2) sends client.end.
             async def send_context_then_end():
                 if not self._rt_ws:
                     return
-                # 1) screen_context first (only if we have non-empty text)
                 if ocr_text and ocr_text.strip():
                     await self._rt_ws.send(json.dumps({
                         "type": "screen_context",
                         "text": ocr_text
                     }))
                     print(f"[{timestamp()}] Realtime: OCR text sent")
-
-                # 2) authoritative end-of-turn trigger (always send)
                 await self._send_client_end()
                 print(f"[{timestamp()}] Realtime: client.end sent")
 
@@ -741,11 +809,10 @@ class TutorTray(QSystemTrayIcon):
                 if self._rt_loop and self._rt_ws:
                     asyncio.run_coroutine_threadsafe(self._send_client_end(), self._rt_loop)
                     print(f"[{timestamp()}] Realtime: client.end sent (fallback after OCR error)")
-            except Exception as _:
+            except Exception:
                 pass
         finally:
             loop.close()
-
 
     async def _send_ocr_and_respond(self, ocr_text):
         if not self._rt_ws:
@@ -877,24 +944,25 @@ class TutorTray(QSystemTrayIcon):
                         elif etype == "response.audio.delta":
                             delta = event.get("delta", "")
                             if delta:
-                                if not current_audio and not self._first_audio_played:
-                                    self._first_audio_played = True
-                                    self.audio_started.emit()
+                                # === STREAMING PLAYBACK: push PCM16 bytes to output queue ===
+                                try:
+                                    pcm_bytes = base64.b64decode(delta)
+                                except Exception:
+                                    pcm_bytes = b""
+                                # On first chunk, set up streaming playback
+                                if self._out_stream is None:
                                     print(f"[{timestamp()}] Realtime: First audio chunk received")
-                                current_audio.extend(base64.b64decode(delta))
+                                    self._start_streaming_playback()
+                                if self._out_queue is not None and pcm_bytes:
+                                    try:
+                                        self._out_queue.put_nowait(pcm_bytes)
+                                    except Exception:
+                                        pass
                         elif etype == "response.text.delta":
                             delta = event.get("delta", "")
                             assistant_response += delta
                         elif etype == "response.audio.done":
-                            if current_audio:
-                                wav_io = io.BytesIO()
-                                with wave.open(wav_io, 'wb') as wf:
-                                    wf.setnchannels(1)
-                                    wf.setsampwidth(2)
-                                    wf.setframerate(24000)
-                                    wf.writeframes(bytes(current_audio))
-                                self.play_audio(wav_io.getvalue(), wait=False)
-                                current_audio = bytearray()
+                            self._stop_streaming_playback()
                         elif etype == "response.done":
                             print(f"[{timestamp()}] Realtime: Response complete")
                             self.update_status.emit("Ready")
@@ -909,6 +977,7 @@ class TutorTray(QSystemTrayIcon):
                             assistant_response = ""
                             current_audio = bytearray()
                         elif etype == "limit.reached":
+                            self._stop_streaming_playback()
                             if self._stream:
                                 self._stream.stop()
                                 self._stream.close()
@@ -919,6 +988,7 @@ class TutorTray(QSystemTrayIcon):
                             self.update_status.emit("Thinking...")
                             print(f"[{timestamp()}] Realtime: Limit reached")
                         elif etype == "error":
+                            self._stop_streaming_playback()
                             print(f"Realtime: Error event: {event}")
                             error_msg = event.get("error", {}).get("message", "Unknown error")
                             self.show_error.emit(f"Error: {error_msg}")
@@ -967,7 +1037,8 @@ class TutorTray(QSystemTrayIcon):
                     writer_task.cancel()
                     self._rt_session_active = False
                     self._rt_writer_task = None
-                    
+                    self._stop_streaming_playback()
+
         except Exception as e:
             print(f"Realtime: Session error: {e}")
             self.show_error.emit(f"Connection error: {e}")
@@ -996,6 +1067,99 @@ class TutorTray(QSystemTrayIcon):
             print(f"[{timestamp()}] Audio: Playback started")
         except Exception as e:
             print(f"Audio playback error: {e}")
+
+    def _start_streaming_playback(self):
+        if self._out_stream is not None:
+            return  # already active this response
+        self._out_queue = Queue()
+        self._out_started = False
+
+        # 24kHz mono PCM16 --> use RawOutputStream so we can write bytes directly
+        self._out_stream = sd.RawOutputStream(
+            samplerate=SR,
+            channels=1,
+            dtype='int16',
+        )
+        self._out_stream.start()
+
+        def _writer():
+            q = self._out_queue
+            out_stream = self._out_stream
+            try:
+                buf = bytearray()
+                while True:
+                    try:
+                        chunk = q.get(timeout=0.1)
+                    except Empty:
+                        # If we already started and have data, try to flush what we have
+                        if self._out_started and buf:
+                            out_stream.write(bytes(buf))
+                            buf.clear()
+                        continue
+
+                    if chunk is None:
+                        # Sentinel: flush any remaining and exit
+                        if buf:
+                            out_stream.write(bytes(buf))
+                            buf.clear()
+                        break
+
+                    # Accumulate bytes
+                    buf.extend(chunk)
+
+                    # Hold until jitter buffer reached, then begin writing continuously
+                    if not self._out_started and len(buf) >= self._jitter_target_bytes:
+                        self._out_started = True
+                        # Fire audio_started only once (matches prior semantics)
+                        if not self._first_audio_played:
+                            self._first_audio_played = True
+                            try:
+                                self.audio_started.emit()
+                            except Exception:
+                                pass
+
+                    # After start, write out in chunks as they arrive
+                    if self._out_started and len(buf) >= (BLOCKSIZE * 2):  # ~20ms worth
+                        out_stream.write(bytes(buf))
+                        buf.clear()
+
+                # End-of-stream: writer exiting
+            except Exception as e:
+                print(f"Streaming audio writer error: {e}")
+            finally:
+                try:
+                    if out_stream:
+                        out_stream.stop()
+                        out_stream.close()
+                except Exception:
+                    pass
+
+        self._out_thread = threading.Thread(target=_writer, daemon=True)
+        self._out_thread.start()
+    
+    def _stop_streaming_playback(self):
+        if not self._out_thread:
+            return
+        try:
+            if self._out_queue:
+                self._out_queue.put_nowait(None)  # sentinel
+        except Exception:
+            pass
+        try:
+            self._out_thread.join(timeout=2.0)
+        except Exception as e:
+            print(f"Streaming audio stop join error: {e}")
+
+        # If still alive, don't nuke shared fields—avoid races with the writer
+        if self._out_thread and self._out_thread.is_alive():
+            print("Streaming audio writer still running after timeout; leaving fields intact to avoid races.")
+            return
+
+        # Writer has stopped; now it's safe to clear
+        self._out_thread = None
+        self._out_queue = None
+        self._out_stream = None
+        self._out_started = False
 
     def _stop_recording_and_process(self):
         print(f"[{timestamp()}] Recording: Stop requested")
@@ -1032,27 +1196,17 @@ class TutorTray(QSystemTrayIcon):
             # Yield briefly; this is condition-driven (no fixed backoff).
             time.sleep(0.01)
 
-        # Now it's safe to stop the writer loop from sending any more audio.
+        # Finalize: use cached OCR result
         self._rt_should_send_audio = False
         print(f"[{timestamp()}] Recording: Drain complete; writer will idle")
 
         # 3) Take screenshot (same as before)
-        self.update_status.emit("Taking screenshot")
-        print(f"[{timestamp()}] Screenshot: Capturing screen")
-        try:
-            with mss.mss() as sct:
-                img = sct.grab(sct.monitors[0])
-                png_bytes = mss.tools.to_png(img.rgb, img.size)
-            print(f"[{timestamp()}] Screenshot: Captured")
-        except Exception as e:
-            print(f"Screenshot: Error occurred: {e}")
-            png_bytes = b""
-
-        # 4) Kick OCR + finalize (this will send screen_context then client.end)
-        self.executor.submit(self._finalize_realtime, png_bytes)
+        self.update_status.emit("Finalizing")
+        self.executor.submit(self._finalize_realtime)
 
         self.update_status.emit("Thinking...")
         self.show_notification.emit("Scaffold", "", "Thinking...")
+        self._ocr_future = None
         return
 
 
