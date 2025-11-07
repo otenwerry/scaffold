@@ -78,7 +78,7 @@ app = BUNDLE(
     coll,
     name='Scaffold.app',
     icon='logos/icon.icns',
-    bundle_identifier='com.scaffold.tutor',
+    bundle_identifier='com.scaffold.tutor-dev',
     info_plist={
         'NSHighResolutionCapable': 'True',
         'CFBundleShortVersionString': '1.0.1',

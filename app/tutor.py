@@ -28,7 +28,7 @@ import asyncio
 from concurrent.futures import ThreadPoolExecutor
 from pynput import keyboard as pk
 from PIL import Image
-import pytesseract
+#import pytesseract
 from collections import deque
 from pathlib import Path
 from datetime import datetime
@@ -56,7 +56,7 @@ BLOCKSIZE = int(SR * FRAME_MS / 1000)
 RING_SECONDS = 60 #60 seconds of audio to buffer
 SUPABASE_URL = "https://giohlugbdruxxlgzdtlj.supabase.co"
 SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdpb2hsdWdiZHJ1eHhsZ3pkdGxqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY0MTY4MzUsImV4cCI6MjA3MTk5MjgzNX0.wJVWrwyo3RLPyrM4D0867GhjenY1Z-lwaZFN4GUQloM"
-APPLE_OCR = True
+#APPLE_OCR = True
 EDGE_FUNCTION_URL = "wss://giohlugbdruxxlgzdtlj.supabase.co/functions/v1/realtime-proxy"
 
 def asset_path(name: str) -> str:
@@ -303,7 +303,7 @@ class TutorTray(QSystemTrayIcon):
         if not self.auth_manager.is_authenticated():
             QTimer.singleShot(500, self.show_auth_dialog)
         self.setup_icon()
-        self.setup_tesseract()
+        #self.setup_tesseract()
         self.is_recording = False
         self._buf = deque(maxlen=(RING_SECONDS * SR) // BLOCKSIZE) 
         self._lock = threading.Lock() # lock for buffer
@@ -407,7 +407,7 @@ class TutorTray(QSystemTrayIcon):
             self.signout_action.setVisible(False)
             self.ask_action.setEnabled(False)
     
-    def setup_tesseract(self):
+    '''def setup_tesseract(self):
         debug_info = []
         if getattr(sys, 'frozen', False):
             if sys.platform == 'darwin':
@@ -485,7 +485,7 @@ class TutorTray(QSystemTrayIcon):
         summary = "Tesseract diagnostics"
         details = "\n".join(debug_info)
         print(f"Tesseract diagnostics:\n{details}")
-    
+ '''   
     def setup_icon(self):
         print("Setting up icon")
         try:
@@ -706,10 +706,11 @@ class TutorTray(QSystemTrayIcon):
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
             try:
-                if APPLE_OCR:
+                '''if APPLE_OCR:
                     txt = loop.run_until_complete(self._apple_ocr(png))
                 else:
-                    txt = loop.run_until_complete(self._ocr(png))
+                    txt = loop.run_until_complete(self._ocr(png))'''
+                txt = loop.run_until_complete(self._apple_ocr(png))
                 return txt
             finally:
                 loop.close()
@@ -773,10 +774,11 @@ class TutorTray(QSystemTrayIcon):
                     with mss.mss() as sct:
                         img = sct.grab(sct.monitors[0])
                         png_bytes = mss.tools.to_png(img.rgb, img.size)
-                    if APPLE_OCR:
+                    '''if APPLE_OCR:
                         ocr_text = loop.run_until_complete(self._apple_ocr(png_bytes))
                     else:
-                        ocr_text = loop.run_until_complete(self._ocr(png_bytes))
+                        ocr_text = loop.run_until_complete(self._ocr(png_bytes))'''
+                    ocr_text = loop.run_until_complete(self._apple_ocr(png_bytes))
                     self._ocr_text_cached = ocr_text or ""
                     print(f"[{timestamp()}] Realtime: Fallback OCR completed, {len(self._ocr_text_cached)} chars")
                 except Exception as e:
@@ -836,7 +838,7 @@ class TutorTray(QSystemTrayIcon):
         with self._lock:
             self._buf.append(indata.copy())
 
-    async def _ocr(self, screenshot):
+    '''async def _ocr(self, screenshot):
         print(f"[{timestamp()}] OCR: Starting request")
         try:
             img = Image.open(io.BytesIO(screenshot))
@@ -846,7 +848,7 @@ class TutorTray(QSystemTrayIcon):
         except Exception as e:
             print(f"OCR: Error occurred: {e}")
             return f"OCR: Error occurred: {e}"
-
+'''
     async def _apple_ocr(self, screenshot):
         with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp:
             tmp.write(screenshot)
