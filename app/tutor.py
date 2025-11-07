@@ -649,7 +649,7 @@ class TutorTray(QSystemTrayIcon):
         #end preflight quota check
         if not self.is_recording:
             print("UI: Entering asking mode")
-            self.first_audio_played = False
+            self._first_audio_played = False
             self._ocr_future = None
             self._ocr_text_cached = None
             ws_dead = (self._rt_ws is None)
