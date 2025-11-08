@@ -1085,6 +1085,7 @@ class TutorTray(QSystemTrayIcon):
         self._out_stream.start()
 
         def _writer():
+            print(f"[{timestamp()}] Streaming writer: Thread started")
             q = self._out_queue
             out_stream = self._out_stream
             try:
@@ -1092,18 +1093,21 @@ class TutorTray(QSystemTrayIcon):
                 while True:
                     try:
                         chunk = q.get(timeout=0.1)
+                        print(f"[{timestamp()}] Streaming writer: Got chunk, is_sentinel={chunk is None}, size={len(chunk) if chunk else 0}")
                     except Empty:
                         # If we already started and have data, try to flush what we have
+                        print(f"[{timestamp()}] Streaming writer: Empty queue")
                         if self._out_started and buf:
                             out_stream.write(bytes(buf))
                             buf.clear()
                         continue
-
                     if chunk is None:
+                        print(f"[{timestamp()}] Streaming writer: Received sentinel, flushing {len(buf)} bytes")
                         # Sentinel: flush any remaining and exit
                         if buf:
                             out_stream.write(bytes(buf))
                             buf.clear()
+                        print(f"[{timestamp()}] Streaming writer: Exiting main loop")
                         break
 
                     # Accumulate bytes
@@ -1129,6 +1133,7 @@ class TutorTray(QSystemTrayIcon):
             except Exception as e:
                 print(f"Streaming audio writer error: {e}")
             finally:
+                print(f"[{timestamp()}] Streaming writer: In finally block, closing stream")
                 try:
                     if out_stream:
                         out_stream.stop()
