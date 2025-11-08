@@ -324,6 +324,7 @@ class TutorTray(QSystemTrayIcon):
         self._out_thread = None
         self._out_started = False
         self._jitter_target_bytes = int(SR * 0.2 * 4) #400ms buffer
+        self._playback_lock = threading.Lock()
  
         #pipeline state
         self.executor = ThreadPoolExecutor(max_workers=2)
@@ -1071,7 +1072,10 @@ class TutorTray(QSystemTrayIcon):
             print(f"Audio playback error: {e}")
 
     def _start_streaming_playback(self):
+        print(f"[{timestamp()}] DBG start_stream: entry out_stream_set={self._out_stream is not None}, "
+            f"out_thread_alive={(self._out_thread.is_alive() if self._out_thread else False)}")
         if self._out_stream is not None:
+            print(f"[{timestamp()}] DBG start_stream: early-return because out_stream_set=True")
             return  # already active this response
         self._out_queue = Queue()
         self._out_started = False
@@ -1085,6 +1089,7 @@ class TutorTray(QSystemTrayIcon):
         self._out_stream.start()
 
         def _writer():
+            print(f"[{timestamp()}] Streaming writer: Thread started")
             q = self._out_queue
             out_stream = self._out_stream
             try:
@@ -1094,16 +1099,18 @@ class TutorTray(QSystemTrayIcon):
                         chunk = q.get(timeout=0.1)
                     except Empty:
                         # If we already started and have data, try to flush what we have
+                        print(f"[{timestamp()}] Streaming writer: Empty queue")
                         if self._out_started and buf:
                             out_stream.write(bytes(buf))
                             buf.clear()
                         continue
-
                     if chunk is None:
+                        print(f"[{timestamp()}] Streaming writer: Received sentinel, flushing {len(buf)} bytes")
                         # Sentinel: flush any remaining and exit
                         if buf:
                             out_stream.write(bytes(buf))
                             buf.clear()
+                        print(f"[{timestamp()}] Streaming writer: Exiting main loop")
                         break
 
                     # Accumulate bytes
@@ -1129,8 +1136,10 @@ class TutorTray(QSystemTrayIcon):
             except Exception as e:
                 print(f"Streaming audio writer error: {e}")
             finally:
+                print(f"[{timestamp()}] Streaming writer: In finally block, closing stream")
                 try:
                     if out_stream:
+                        print(f"[{timestamp()}] DBG writer_finally: exiting; out_stream_set_before_close={out_stream is not None}")
                         out_stream.stop()
                         out_stream.close()
                 except Exception:
@@ -1154,9 +1163,13 @@ class TutorTray(QSystemTrayIcon):
 
         # If still alive, don't nuke shared fields—avoid races with the writer
         if self._out_thread and self._out_thread.is_alive():
-            print("Streaming audio writer still running after timeout; leaving fields intact to avoid races.")
+            # IMPORTANT: do NOT stop/close PortAudio here; the writer thread owns it.
+            with self._playback_lock:
+                self._out_stream = None
+                self._out_queue = None
+                self._out_thread = None
+                self._out_started = False
             return
-
         # Writer has stopped; now it's safe to clear
         self._out_thread = None
         self._out_queue = None
