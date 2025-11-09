@@ -48,10 +48,12 @@ export default function GetStarted() {
             <div className="flex flex-col">
             <span> Microphone Permissions</span>
             <Image src="/images/mic1.png" alt="Download" width={250} height={200} className="rounded-lg" />
+            <span className="text-xs text-gray-500 mt-2">So Scaffold can hear what you say.</span>
             </div>
             <div className="flex flex-col ">
             <span>Screen & System Audio Recording Permissions</span>
-            <Image src="/images/sys_perm.png" alt="Drag" width={450} height={200} className="rounded-lg" />
+            <Image src="/images/sys_perm.png" alt="Drag" width={460} height={200} className="rounded-lg" />
+            <span className="text-xs text-gray-500 mt-2 max-w-md">So Scaffold can see your screen momentarily when you start asking a question. Screenshots aren't saved.</span>
             </div>
           
             </div>
