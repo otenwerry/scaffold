@@ -17,9 +17,10 @@ export default function GetStarted() {
           <CardContent className="text-lg md:text-lg text-gray-800 max-w-3xl mx-auto leading-relaxed text-left">
             1. Click the Download button below <br />
             2. Once download is complete, open the installer by clicking on the downloaded file <br />
-            3. Drag Scaffold into the Applications folder next to it, as well as your Dock <br />
-            4. Then, open System Settings and navigate to Privacy & Security in the side bar <br />
-            5. Add Scaffold to Accessibility, Input Monitoring, and Screen & System Audio Recording
+            3. Drag Scaffold into the Applications folder next to it. You can also drag it into your dock on the bottom of your screen with your other apps for easy access. <br />
+            4. Open System Settings and navigate to Privacy & Security in the side bar. Add Scaffold to Screen & System Audio Recording so that it can capture your screen when you ask questions. <br />
+            4a. (If you’d rather not give it access to your screen, you can leave this off – Scaffold is still useful just as a conversation partner) <br />
+            5. Open the app and an icon should appear in your menu bar at the top of your screen. You can ask questions from here!
           </CardContent>
           <Button className="futuristic-button text-white text-lg px-4 py-2 h-auto max-w-md text-center">
             <a href="https://github.com/otenwerry/scaffold/releases/download/v1.0.0/Scaffold.dmg" download>
