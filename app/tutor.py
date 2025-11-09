@@ -26,7 +26,7 @@ import wave, threading, time, base64, io, tempfile
 import mss
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
-from pynput import keyboard as pk
+#from pynput import keyboard as pk
 from PIL import Image
 #import pytesseract
 from collections import deque
@@ -354,11 +354,11 @@ class TutorTray(QSystemTrayIcon):
         self.realtime_ready.connect(self._start_recording_realtime)
 
         # Set up global hotkey 
-        self._ghk = pk.GlobalHotKeys({
+        """self._ghk = pk.GlobalHotKeys({
             '<f9>': lambda: self.toggle_ask.emit()
         })
         self._ghk.daemon = True
-        self._ghk.start()
+        self._ghk.start()"""
         
         # Show system tray
         self.show()
