@@ -23,22 +23,24 @@ export default function GetStarted() {
           </Button> the latest version of Scaffold<br /> 
             
             2. Once the download is complete, open the installer by clicking on the downloaded file <br />
-            <div className="flex justify-center my-2">
-              <Image src="/images/installer.png" alt="Installer" width={307} height={100} />
+            <div className="flex justify-center my-2 gap-4">
+              <Image src="/images/installer.png" alt="Installer" width={307} height={100} className="rounded-lg" /> 
+              <Image src="/images/download.png" alt="Download" width={170} height={100} className="rounded-lg" />
             </div>
-            3. Drag Scaffold into the Applications folder next to it. You can also drag it into your dock on the bottom of your screen with your other apps for easy access. <br />
+            3. Drag Scaffold into the Applications folder.
             <div className="flex justify-center my-2">
-              <Image src="/images/drag.png" alt="Drag" width={307} height={100} />
+              <Image src="/images/drag.png" alt="Drag" width={307} height={100} className="rounded-lg" />
             </div>
+            You can also drag it into your dock on the bottom of your screen with your other apps for easy access. <br />
             4. Open the app and <Image src="/images/w_logo.png" alt="Icon" width={16} height={16} className="inline" /> should appear in your menu bar at the top of your screen.
             <div className="flex justify-center my-2">
-              <Image src='/images/tray.png' alt="Tray" width={307} height={100} />
+              <Image src='/images/tray.png' alt="Tray" width={307} height={100} className="rounded-lg" />
             </div>
-            5. To start or stop asking a question, use the shortcut <strong> Command (⌘) + Shift (⇧) + Space </strong>, or press <strong> 'Start Asking' </strong> in the menu bar. <br /> 
+            5. To start or stop asking a question, use the shortcut <strong> Command (⌘) + Shift (⇧) + Space </strong>, or click the logo and press <strong> 'Start Asking' </strong> in the menu bar. <br /> 
             6. Once you ask a question, Scaffold will prompt you for Microphone permissions and Screen & System Audio Recording permissions, so that it can hear you and see your screen.
             <div className="flex gap-4 my-2 justify-center">
-              <Image src='/images/mic.png' alt="Permissions" width={307} height={100} /> 
-              <Image src='/images/sys.png' alt="Permissions2" width={307} height={100} />
+              <Image src='/images/mic.png' alt="Permissions" width={307} height={100} className="rounded-lg" /> 
+              <Image src='/images/sys.png' alt="Permissions2" width={307} height={100} className="rounded-lg" />
             </div>
             If you'd rather not let Scaffold see your screen, you can leave the latter turned off – it's still useful just as a conversation partner while you have eyes on your work.
           </CardContent>
