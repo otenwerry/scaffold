@@ -32,6 +32,8 @@ export default function GetStarted() {
               </div>
               <div className="flex flex-col my-2">
                 <span><strong>4.</strong> Launch</span>
+                <Image src="/images/launch.png" alt="Drag" width={250} height={200} className="rounded-lg" />
+
               </div>
             </div>
             
