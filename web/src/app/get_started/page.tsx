@@ -22,7 +22,7 @@ export default function GetStarted() {
             4a. It will prompt you for Microphone permissions and Screen & System Audio Recording permissions, so that it can hear you and see your screen. If you’d rather not let Scaffold see your screen, you can leave the latter turned off – it’s still useful just as a conversation partner.
           </CardContent>
           <Button className="futuristic-button text-white text-lg px-4 py-2 h-auto max-w-md text-center">
-            <a href="https://github.com/otenwerry/scaffold/releases/download/v1.0.1/Scaffold.dmg" download>
+            <a href="https://github.com/otenwerry/scaffold/releases/download/v1.0.2/Scaffold.dmg" download>
               Download Scaffold
             </a>
           </Button>

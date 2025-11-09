@@ -2,7 +2,7 @@
 set -euo pipefail
 APP="dist/Scaffold.app"
 KEYCHAIN_PROFILE="AC_NOTARY"
-VOL="Scaffold Installer (dev3)"
+VOL="Scaffold Installer"
 DMG="Scaffold.dmg"
 OUTDIR="."
 # 1) Notarize & staple the .app (submit a ZIP of the app)
