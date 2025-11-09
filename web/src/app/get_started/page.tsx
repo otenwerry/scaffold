@@ -12,37 +12,50 @@ export default function GetStarted() {
 
       <div className="wireframe-bg"></div>
 
-      <main className="relative z-10 flex flex-col items-center justify-start h-screen px-4 pt-20 md:pt-25">
+      <main className="relative z-10 flex flex-col items-center justify-start px-4 pt-20 md:pt-25 pb-8">
         <Card className="justify-center items-center">
-          <CardTitle className="text-4xl font-bold text-gray-900 leading-relaxed text-center">Get Started</CardTitle>
+          <CardTitle className="text-4xl font-bold text-gray-900 leading-relaxed text-center">Thanks for trying out Scaffold!</CardTitle>
           <CardContent className="text-lg md:text-lg text-gray-800 max-w-3xl mx-auto leading-relaxed text-left">
-            1. <Button className="futuristic-button text-white text-lg ml-1 mr-1 px-2 py-1 h-auto max-w-md text-center">
-            <a href="https://github.com/otenwerry/scaffold/releases/download/v1.0.3/Scaffold.dmg" download>
+            <strong>1.</strong><Button className="futuristic-button text-white text-lg mr-1 ml-1 px-2 py-1 h-auto max-w-md text-center">
+             <a href="https://github.com/otenwerry/scaffold/releases/download/v1.0.3/Scaffold.dmg" download>
               Download
             </a>
-          </Button> the latest version of Scaffold<br /> 
+          </Button> the latest version here<br /> 
+            <div className="flex flex-row my-2 gap-8">
+              <div className="flex flex-col my-2">
+              <span><strong>2.</strong> Open</span>
+              <Image src="/images/download.png" alt="Download" width={250} height={200} className="rounded-lg" />
+              </div>
+              <div className="flex flex-col my-2">
+              <span><strong>3.</strong> Install</span>
+              <Image src="/images/drag1.png" alt="Drag" width={250} height={200} className="rounded-lg" />
+              </div>
+              <div className="flex flex-col my-2">
+                <span><strong>4.</strong> Launch</span>
+                <Image src="/images/launch.png" alt="Drag" width={250} height={200} className="rounded-lg" />
+              </div>
+            </div>
+            <Image src="/images/w_logo.png" alt="Icon" width={16} height={16} className="inline" /> should appear in your menu bar at the top of your screen
+            <div className="flex justify-start my-2">
+              <Image src='/images/tray1.png' alt="Tray" width={307} height={100} className="rounded-lg" />
+            </div>
+            <strong>6. </strong> To start or stop asking a question, use the shortcut <strong> Command (⌘) + Shift (⇧) + Space </strong>, or click <Image src="/images/w_logo.png" alt="Icon" width={16} height={16} className="inline" /> and press <strong> &lsquo;Start Asking&rsquo; </strong> <br /> 
+            <div className="h-4">
+            </div>
+            <strong>7. </strong> Once you ask a question, Scaffold will prompt you for: <br />
             
-            2. Once the download is complete, open the installer by clicking on the downloaded file <br />
-            <div className="flex justify-center my-2 gap-4">
-              <Image src="/images/installer.png" alt="Installer" width={307} height={100} className="rounded-lg" /> 
-              <Image src="/images/download.png" alt="Download" width={170} height={100} className="rounded-lg" />
+            <div className="flex flex-row my-2 gap-8">
+            <div className="flex flex-col">
+            <span> Microphone Permissions</span>
+            <Image src="/images/mic1.png" alt="Download" width={250} height={200} className="rounded-lg" />
             </div>
-            3. Drag Scaffold into the Applications folder.
-            <div className="flex justify-center my-2">
-              <Image src="/images/drag.png" alt="Drag" width={307} height={100} className="rounded-lg" />
+            <div className="flex flex-col ">
+            <span>Screen & System Audio Recording Permissions</span>
+            <Image src="/images/sys_perm.png" alt="Drag" width={450} height={200} className="rounded-lg" />
             </div>
-            You can also drag it into your dock on the bottom of your screen with your other apps for easy access. <br />
-            4. Open the app and <Image src="/images/w_logo.png" alt="Icon" width={16} height={16} className="inline" /> should appear in your menu bar at the top of your screen.
-            <div className="flex justify-center my-2">
-              <Image src='/images/tray.png' alt="Tray" width={307} height={100} className="rounded-lg" />
+          
             </div>
-            5. To start or stop asking a question, use the shortcut <strong> Command (⌘) + Shift (⇧) + Space </strong>, or click the logo and press <strong> &lsquo;Start Asking&rsquo; </strong> in the menu bar. <br /> 
-            6. Once you ask a question, Scaffold will prompt you for Microphone permissions and Screen & System Audio Recording permissions, so that it can hear you and see your screen.
-            <div className="flex gap-4 my-2 justify-center">
-              <Image src='/images/mic.png' alt="Permissions" width={307} height={100} className="rounded-lg" /> 
-              <Image src='/images/sys.png' alt="Permissions2" width={307} height={100} className="rounded-lg" />
-            </div>
-            If you&apos;d rather not let Scaffold see your screen, you can leave the latter turned off &mdash; it&apos;s still useful just as a conversation partner while you have eyes on your work.
+            If you&apos;d rather not let Scaffold see your screen, you can leave the latter turned off &mdash; it&apos;s still useful just as a conversation partner while you have eyes on your work. <br />
           </CardContent>
         </Card>
       </main>
