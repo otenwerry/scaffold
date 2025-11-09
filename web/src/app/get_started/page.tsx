@@ -39,10 +39,10 @@ export default function GetStarted() {
             <div className="flex justify-start my-2">
               <Image src='/images/tray1.png' alt="Tray" width={307} height={100} className="rounded-lg" />
             </div>
-            <strong>6. </strong> To start or stop asking a question, use the shortcut <strong> Command (⌘) + Shift (⇧) + Space </strong>, or click <Image src="/images/w_logo.png" alt="Icon" width={16} height={16} className="inline" /> and press <strong> &lsquo;Start Asking&rsquo; </strong> <br /> 
+            <strong>5. </strong> To start or stop asking a question, use the shortcut <strong> Command (⌘) + Shift (⇧) + Space </strong>, or click <Image src="/images/w_logo.png" alt="Icon" width={16} height={16} className="inline" /> and press <strong> &lsquo;Start Asking&rsquo; </strong> <br /> 
             <div className="h-4">
             </div>
-            <strong>7. </strong> Once you ask a question, Scaffold will prompt you for: <br />
+            <strong>6. </strong> Once you ask a question, Scaffold will prompt you for: <br />
             
             <div className="flex flex-row my-2 gap-8">
             <div className="flex flex-col">
