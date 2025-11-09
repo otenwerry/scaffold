@@ -56,7 +56,7 @@ export default function GetStarted() {
             <div className="flex flex-col ">
             <span>Screen & System Audio Recording Permissions</span>
             <Image src="/images/sys_perm.png" alt="Drag" width={460} height={200} className="rounded-lg" />
-            <span className="text-xs text-gray-500 mt-2 max-w-md">Optional but highly recommended so Scaffold can see your screen momentarily when you start asking a question. Screenshots aren't saved</span>
+            <span className="text-xs text-gray-500 mt-2 max-w-md">Optional but highly recommended so Scaffold can see your screen momentarily when you start asking a question. Screenshots aren&apos;t saved</span>
             </div>
           
             </div>
