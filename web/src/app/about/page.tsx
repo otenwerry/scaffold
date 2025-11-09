@@ -14,7 +14,7 @@ export default function About() {
         <Card>
           <CardTitle className="text-4xl font-bold text-gray-900 leading-relaxed text-center">About</CardTitle>
           <CardContent className="text-lg md:text-lg text-gray-800 max-w-3xl mx-auto leading-relaxed text-left">
-          <strong>What is Scaffold? </strong>Scaffold is voice AI for knowledge work. It hears what you say, sees your screen, and responds out loud in real time.
+          <strong>What is Scaffold? </strong>Scaffold is omniscient voice AI for thinking out loud. It hears what you say, sees your screen, and responds verballyin real time.
           </CardContent>
           <CardContent className="text-lg md:text-lg text-gray-800 max-w-3xl mx-auto leading-relaxed text-left">
           <strong>Why we built this: </strong>AI <Link href="https://metr.org/blog/2025-07-10-early-2025-ai-experienced-os-dev-study/" target="_blank" className="text-blue-500 hover:text-blue-700">slows down</Link> the average software engineer and students are learning less every day. A good boss or TA won&apos;t take the computer and start writing for you; they look over your shoulder and prod you along. In like manner, Scaffold keeps the thinking in your voice and inside your head.
@@ -27,7 +27,7 @@ export default function About() {
           </CardContent>
           <CardContent className="text-lg md:text-lg text-gray-800 max-w-3xl mx-auto leading-relaxed text-left">
             <strong>System requirements:</strong> Scaffold only works on Macs with Apple Silicon right now. Intel/Windows support is coming soon. <br /><br />
-            <strong>Privacy: </strong>Scaffold only looks at your screen when you begin a question, and doesn&apos;t save your data. 
+            <strong>Privacy: </strong>Scaffold only looks at your screen when you start asking a question, and doesn&apos;t save your data. 
           </CardContent>
         </Card>
         <Footer />

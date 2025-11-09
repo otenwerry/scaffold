@@ -16,21 +16,25 @@ export default function GetStarted() {
         <Card className="justify-center items-center">
           <CardTitle className="text-4xl font-bold text-gray-900 leading-relaxed text-center">Get Started</CardTitle>
           <CardContent className="text-lg md:text-lg text-gray-800 max-w-3xl mx-auto leading-relaxed text-left">
-            1. <Button className="futuristic-button text-white text-lg ml-1 mr-1 px-2 py-1 h-auto max-w-md text-center">
+            <strong>1.</strong> <Button className="futuristic-button text-white text-lg ml-1 mr-1 px-2 py-1 h-auto max-w-md text-center">
             <a href="https://github.com/otenwerry/scaffold/releases/download/v1.0.3/Scaffold.dmg" download>
               Download
             </a>
           </Button> the latest version of Scaffold<br /> 
+            <div className="flex flex-row  my-2 gap-8">
+              <div className="flex flex-col my-2">
+              <span><strong>2.</strong> Open</span>
+              <Image src="/images/download.png" alt="Download" width={250} height={200} className="rounded-lg" />
+              </div>
+              <div className="flex flex-col my-2">
+              <span><strong>3.</strong> Install</span>
+              <Image src="/images/drag.png" alt="Drag" width={250} height={200} className="rounded-lg" />
+              </div>
+              <div className="flex flex-col my-2">
+                <span><strong>4.</strong> Launch</span>
+              </div>
+            </div>
             
-            2. Once the download is complete, open the installer by clicking on the downloaded file <br />
-            <div className="flex justify-center my-2 gap-4">
-              <Image src="/images/installer.png" alt="Installer" width={307} height={100} className="rounded-lg" /> 
-              <Image src="/images/download.png" alt="Download" width={170} height={100} className="rounded-lg" />
-            </div>
-            3. Drag Scaffold into the Applications folder.
-            <div className="flex justify-center my-2">
-              <Image src="/images/drag.png" alt="Drag" width={307} height={100} className="rounded-lg" />
-            </div>
             You can also drag it into your dock on the bottom of your screen with your other apps for easy access. <br />
             4. Open the app and <Image src="/images/w_logo.png" alt="Icon" width={16} height={16} className="inline" /> should appear in your menu bar at the top of your screen.
             <div className="flex justify-center my-2">
