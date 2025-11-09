@@ -25,33 +25,38 @@ export default function GetStarted() {
               <div className="flex flex-col my-2">
               <span><strong>2.</strong> Open</span>
               <Image src="/images/download.png" alt="Download" width={250} height={200} className="rounded-lg" />
+              <span className="text-xs text-gray-500 mt-2">Open <strong>Scaffold.dmg</strong> from Downloads</span>
               </div>
               <div className="flex flex-col my-2">
               <span><strong>3.</strong> Install</span>
               <Image src="/images/drag1.png" alt="Drag" width={250} height={200} className="rounded-lg" />
+              <span className="text-xs text-gray-500 mt-2">Drag <strong>Scaffold</strong> to Applications</span>
               </div>
               <div className="flex flex-col my-2">
                 <span><strong>4.</strong> Launch</span>
                 <Image src="/images/launch.png" alt="Drag" width={250} height={200} className="rounded-lg" />
+                <span className="text-xs text-gray-500 mt-2">Open <strong>Scaffold</strong> from Applications </span>
               </div>
             </div>
             <Image src="/images/w_logo.png" alt="Icon" width={16} height={16} className="inline" /> should appear in your menu bar at the top of your screen
             <div className="flex justify-start my-2">
               <Image src='/images/tray1.png' alt="Tray" width={307} height={100} className="rounded-lg" />
             </div>
-            <strong>6. </strong> To start or stop asking a question, use the shortcut <strong> Command (⌘) + Shift (⇧) + Space </strong>, or click <Image src="/images/w_logo.png" alt="Icon" width={16} height={16} className="inline" /> and press <strong> &lsquo;Start Asking&rsquo; </strong> <br /> 
+            <strong>5. </strong> To start or stop asking a question, use the shortcut <strong> Command (⌘) + Shift (⇧) + Space </strong>, or click <Image src="/images/w_logo.png" alt="Icon" width={16} height={16} className="inline" /> and press <strong> &lsquo;Start Asking&rsquo; </strong> <br /> 
             <div className="h-4">
             </div>
-            <strong>7. </strong> Once you ask a question, Scaffold will prompt you for: <br />
+            <strong>6. </strong> Once you ask a question, Scaffold will prompt you for: <br />
             
             <div className="flex flex-row my-2 gap-8">
             <div className="flex flex-col">
             <span> Microphone Permissions</span>
             <Image src="/images/mic1.png" alt="Download" width={250} height={200} className="rounded-lg" />
+            <span className="text-xs text-gray-500 mt-2">Required so Scaffold can hear what you say</span>
             </div>
             <div className="flex flex-col ">
             <span>Screen & System Audio Recording Permissions</span>
-            <Image src="/images/sys_perm.png" alt="Drag" width={450} height={200} className="rounded-lg" />
+            <Image src="/images/sys_perm.png" alt="Drag" width={460} height={200} className="rounded-lg" />
+            <span className="text-xs text-gray-500 mt-2 max-w-md">Optional but highly recommended so Scaffold can see your screen momentarily when you start asking a question. Screenshots aren't saved</span>
             </div>
           
             </div>
