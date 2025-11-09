@@ -22,7 +22,7 @@ export default function GetStarted() {
             5. Add Scaffold to Accessibility, Input Monitoring, and Screen & System Audio Recording
           </CardContent>
           <Button className="futuristic-button text-white text-lg px-4 py-2 h-auto max-w-md text-center">
-            <a href="https://github.com/otenwerry/scaffold/releases/download/v1.0.0/Scaffold.dmg" download>
+            <a href="https://github.com/otenwerry/scaffold/releases/download/v1.0.2/Scaffold.dmg" download>
               Download Scaffold
             </a>
           </Button>
