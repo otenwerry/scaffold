@@ -36,13 +36,13 @@ export default function GetStarted() {
             <div className="flex justify-center my-2">
               <Image src='/images/tray.png' alt="Tray" width={307} height={100} className="rounded-lg" />
             </div>
-            5. To start or stop asking a question, use the shortcut <strong> Command (⌘) + Shift (⇧) + Space </strong>, or click the logo and press <strong> 'Start Asking' </strong> in the menu bar. <br /> 
+            5. To start or stop asking a question, use the shortcut <strong> Command (⌘) + Shift (⇧) + Space </strong>, or click the logo and press <strong> &lsquo;Start Asking&rsquo; </strong> in the menu bar. <br /> 
             6. Once you ask a question, Scaffold will prompt you for Microphone permissions and Screen & System Audio Recording permissions, so that it can hear you and see your screen.
             <div className="flex gap-4 my-2 justify-center">
               <Image src='/images/mic.png' alt="Permissions" width={307} height={100} className="rounded-lg" /> 
               <Image src='/images/sys.png' alt="Permissions2" width={307} height={100} className="rounded-lg" />
             </div>
-            If you'd rather not let Scaffold see your screen, you can leave the latter turned off – it's still useful just as a conversation partner while you have eyes on your work.
+            If you&apos;d rather not let Scaffold see your screen, you can leave the latter turned off &mdash; it&apos;s still useful just as a conversation partner while you have eyes on your work.
           </CardContent>
         </Card>
       </main>
