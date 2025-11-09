@@ -23,7 +23,7 @@ export default function GetStarted() {
             5. Open the app and an icon should appear in your menu bar at the top of your screen. You can ask questions from here!
           </CardContent>
           <Button className="futuristic-button text-white text-lg px-4 py-2 h-auto max-w-md text-center">
-            <a href="https://github.com/otenwerry/scaffold/releases/download/v1.0.0/Scaffold.dmg" download>
+            <a href="https://github.com/otenwerry/scaffold/releases/download/v1.0.1/Scaffold.dmg" download>
               Download Scaffold
             </a>
           </Button>
