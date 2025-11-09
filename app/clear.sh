@@ -5,3 +5,5 @@ rm -rf /Applications/Scaffold.app
 
 tccutil reset Microphone com.scaffold.tutor-dev
 tccutil reset ScreenCapture com.scaffold.tutor-dev
+tccutil reset ListenEvent com.scaffold.tutor-dev
+tccutil reset Accessibility com.scaffold.tutor-dev
