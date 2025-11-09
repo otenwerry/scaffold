@@ -27,7 +27,7 @@ export default function About() {
           </CardContent>
           <CardContent className="text-lg md:text-lg text-gray-800 max-w-3xl mx-auto leading-relaxed text-left">
             <strong>System requirements:</strong> Scaffold only works on Macs with Apple Silicon right now. Intel/Windows support is coming soon. <br /><br />
-            <strong>Privacy: </strong>Scaffold only looks at your screen when you finish asking a question, and doesn&apos;t save your data. 
+            <strong>Privacy: </strong>Scaffold only looks at your screen when you begin a question, and doesn&apos;t save your data. 
           </CardContent>
         </Card>
         <Footer />
