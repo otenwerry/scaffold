@@ -28,7 +28,7 @@ export default function GetStarted() {
               </div>
               <div className="flex flex-col my-2">
               <span><strong>3.</strong> Install</span>
-              <Image src="/images/drag.png" alt="Drag" width={250} height={200} className="rounded-lg" />
+              <Image src="/images/drag1.png" alt="Drag" width={250} height={200} className="rounded-lg" />
               </div>
               <div className="flex flex-col my-2">
                 <span><strong>4.</strong> Launch</span>
