@@ -1,3 +1,5 @@
+from auth import AuthManager, OTPDialog
+
 import sys
 import os
 if getattr(sys, 'frozen', False):
@@ -10,7 +12,6 @@ if getattr(sys, 'frozen', False):
         sys.stdout = open(os.devnull, 'w')
         sys.stderr = sys.stdout
 
-from auth import AuthManager, OTPDialog
 from PySide6.QtWidgets import (QApplication, QSystemTrayIcon, QMenu, 
                               QMainWindow, QVBoxLayout, QWidget, 
                               QLineEdit, QPushButton, QLabel, QMessageBox,

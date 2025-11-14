@@ -9,7 +9,7 @@ datas = [
     ]
 
 a = Analysis(
-    ['tutor.py'],
+    ['app.py'],
     pathex=[],
     binaries=binaries,
     datas=datas,
