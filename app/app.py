@@ -1,5 +1,6 @@
 from auth import AuthManager, OTPDialog
 from hotkeys import install_global_hotkey, uninstall_global_hotkey
+import config
 
 import sys
 import os
@@ -50,27 +51,6 @@ from Vision import (
     VNRequestTextRecognitionLevelAccurate,
 )
 
-SR = 24000
-FRAME_MS = 20 
-BLOCKSIZE = int(SR * FRAME_MS / 1000) 
-RING_SECONDS = 60 #60 seconds of audio to buffer
-#APPLE_OCR = True
-EDGE_FUNCTION_URL = "wss://giohlugbdruxxlgzdtlj.supabase.co/functions/v1/realtime-proxy"
-
-def asset_path(name: str) -> str:
-    if getattr(sys, 'frozen', False):
-        if hasattr(sys, '_MEIPASS'):
-            base = sys._MEIPASS
-        elif sys.platform == 'darwin':
-            base = os.path.normpath(os.path.join(os.path.dirname(sys.executable), "..", "Resources"))
-        else:
-            base = os.path.dirname(sys.executable)
-    else:
-        base = os.path.dirname(os.path.abspath(__file__))
-    return os.path.join(base, name)
-
-def timestamp():
-    return datetime.now().strftime("%H:%M:%S.%f")[:-3]
 
         
 class Tray(QSystemTrayIcon):
@@ -89,7 +69,7 @@ class Tray(QSystemTrayIcon):
         self.setup_icon()
         #self.setup_tesseract()
         self.is_recording = False
-        self._buf = deque(maxlen=(RING_SECONDS * SR) // BLOCKSIZE) 
+        self._buf = deque(maxlen=(config.RING_SECONDS * config.SR) // config.BLOCKSIZE) 
         self._lock = threading.Lock() # lock for buffer
         self._stream = None # audio stream   
         self.show_notification.connect(self._show_notification, Qt.ConnectionType.QueuedConnection)
@@ -107,7 +87,7 @@ class Tray(QSystemTrayIcon):
         self._out_queue = None
         self._out_thread = None
         self._out_started = False
-        self._jitter_target_bytes = int(SR * 0.2 * 4) #400ms buffer
+        self._jitter_target_bytes = int(config.SR * 0.2 * 4) #400ms buffer
         self._playback_lock = threading.Lock()
  
         #pipeline state
@@ -121,12 +101,12 @@ class Tray(QSystemTrayIcon):
         self.show_error.connect(self._show_error, Qt.ConnectionType.QueuedConnection)
 
         #thinking animation
-        self._base_icon = QIcon(asset_path("logos/icon.png"))
+        self._base_icon = QIcon(config.asset_path("logos/icon.png"))
         self._thinking_icons = [
-            QIcon(asset_path("logos/gray.png")),
-            QIcon(asset_path("logos/blue1.png")),
-            QIcon(asset_path("logos/blue2.png")),
-            QIcon(asset_path("logos/blue3.png"))
+            QIcon(config.asset_path("logos/gray.png")),
+            QIcon(config.asset_path("logos/blue1.png")),
+            QIcon(config.asset_path("logos/blue2.png")),
+            QIcon(config.asset_path("logos/blue3.png"))
         ]
         self._thinking_index = 0
         self._animating = False
@@ -197,7 +177,7 @@ class Tray(QSystemTrayIcon):
     def setup_icon(self):
         print("Setting up icon")
         try:
-            self.setIcon(QIcon(asset_path("logos/icon.png")))
+            self.setIcon(QIcon(config.asset_path("logos/icon.png")))
         except:
             pixmap = QPixmap(32, 32)
             pixmap.fill(Qt.GlobalColor.transparent)
@@ -329,7 +309,7 @@ class Tray(QSystemTrayIcon):
         QMessageBox.critical(None, "Error", message)
 
     def on_ask(self):
-        print(f"[{timestamp()}] UI: Ask button clicked")
+        print(f"[{config.timestamp()}] UI: Ask button clicked")
         print(f"UI: Current state - is_recording={self.is_recording}, session_active={self._rt_session_active}, should_send={self._rt_should_send_audio}")
         if not self.auth_manager.is_authenticated():
             self.show_auth_dialog()
@@ -383,7 +363,7 @@ class Tray(QSystemTrayIcon):
             self._stop_recording_and_process()
 
     def _start_recording_realtime(self):
-        print(f"[{timestamp()}] Recording: Start requested (realtime)")
+        print(f"[{config.timestamp()}] Recording: Start requested (realtime)")
         self.ask_action.setText("Stop Asking")
         if self.is_recording:
             print("Recording: Already recording; ignoring start")
@@ -391,22 +371,22 @@ class Tray(QSystemTrayIcon):
         self._buf.clear()
         self._rt_should_send_audio = True
         self._stream = sd.InputStream(
-            samplerate=SR,
+            samplerate=config.SR,
             channels=1,
             dtype="float32",
-            blocksize=int(SR * FRAME_MS / 1000),
+            blocksize=int(config.SR * config.FRAME_MS / 1000),
             callback=self._audio_cb
         )
         self._stream.start()
         self.is_recording = True
         self.update_status.emit("Recording")
         self.show_notification.emit("Scaffold", "", "Asking…")
-        print(f"[{timestamp()}] Recording: Started (realtime)")
+        print(f"[{config.timestamp()}] Recording: Started (realtime)")
         try:
             with mss.mss() as sct:
                 img = sct.grab(sct.monitors[0])
                 png_bytes = mss.tools.to_png(img.rgb, img.size)
-            print(f"[{timestamp()}] Screenshot: Captured for OCR")
+            print(f"[{config.timestamp()}] Screenshot: Captured for OCR")
         except Exception as e:
             print(f"Screenshot: Error occurred: {e}")
             png_bytes = b""
@@ -431,7 +411,7 @@ class Tray(QSystemTrayIcon):
             try:
                 txt = fut.result() or ""
                 self._ocr_text_cached = txt
-                print(f"[{timestamp()}] OCR: Completed, {len(txt)} chars")
+                print(f"[{config.timestamp()}] OCR: Completed, {len(txt)} chars")
             except Exception as e:
                 print(f"OCR: Future error: {e}")
 
@@ -454,7 +434,7 @@ class Tray(QSystemTrayIcon):
             print("Realtime: Session ended")
 
     def _finalize_realtime(self):
-        print(f"[{timestamp()}] Realtime: Finalizing with OCR (using early result if available)")
+        print(f"[{config.timestamp()}] Realtime: Finalizing with OCR (using early result if available)")
 
         # Run inside a worker thread (as before). Use a local loop only if we need to do last-chance OCR.
         loop = asyncio.new_event_loop()
@@ -471,14 +451,14 @@ class Tray(QSystemTrayIcon):
                 try:
                     ocr_text = self._ocr_future.result() or ""
                     self._ocr_text_cached = ocr_text
-                    print(f"[{timestamp()}] Realtime: OCR future joined at finalize, {len(ocr_text)} chars")
+                    print(f"[{config.timestamp()}] Realtime: OCR future joined at finalize, {len(ocr_text)} chars")
                 except Exception as e:
                     print(f"Realtime: OCR future error at finalize: {e}")
                     ocr_text = ""  # fall through to sending client.end anyway
 
             # 3) Defensive fallback: if no early OCR was started (shouldn't happen), do a last-chance screenshot+OCR.
             else:
-                print(f"[{timestamp()}] Realtime: No early OCR future; taking fallback screenshot")
+                print(f"[{config.timestamp()}] Realtime: No early OCR future; taking fallback screenshot")
                 try:
                     with mss.mss() as sct:
                         img = sct.grab(sct.monitors[0])
@@ -489,7 +469,7 @@ class Tray(QSystemTrayIcon):
                         ocr_text = loop.run_until_complete(self._ocr(png_bytes))'''
                     ocr_text = loop.run_until_complete(self._apple_ocr(png_bytes))
                     self._ocr_text_cached = ocr_text or ""
-                    print(f"[{timestamp()}] Realtime: Fallback OCR completed, {len(self._ocr_text_cached)} chars")
+                    print(f"[{config.timestamp()}] Realtime: Fallback OCR completed, {len(self._ocr_text_cached)} chars")
                 except Exception as e:
                     print(f"Realtime: Fallback screenshot/OCR error: {e}")
                     ocr_text = ""
@@ -503,9 +483,9 @@ class Tray(QSystemTrayIcon):
                         "type": "screen_context",
                         "text": ocr_text
                     }))
-                    print(f"[{timestamp()}] Realtime: OCR text sent")
+                    print(f"[{config.timestamp()}] Realtime: OCR text sent")
                 await self._send_client_end()
-                print(f"[{timestamp()}] Realtime: client.end sent")
+                print(f"[{config.timestamp()}] Realtime: client.end sent")
 
             # Schedule on the realtime loop if it’s alive
             if self._rt_loop and self._rt_ws:
@@ -519,7 +499,7 @@ class Tray(QSystemTrayIcon):
             try:
                 if self._rt_loop and self._rt_ws:
                     asyncio.run_coroutine_threadsafe(self._send_client_end(), self._rt_loop)
-                    print(f"[{timestamp()}] Realtime: client.end sent (fallback after OCR error)")
+                    print(f"[{config.timestamp()}] Realtime: client.end sent (fallback after OCR error)")
             except Exception:
                 pass
         finally:
@@ -529,7 +509,7 @@ class Tray(QSystemTrayIcon):
         if not self._rt_ws:
             return
         
-        print(f"[{timestamp()}] Realtime: Sending OCR text")
+        print(f"[{config.timestamp()}] Realtime: Sending OCR text")
         
         if ocr_text and ocr_text.strip():
             await self._rt_ws.send(json.dumps({
@@ -548,11 +528,11 @@ class Tray(QSystemTrayIcon):
             self._buf.append(indata.copy())
 
     '''async def _ocr(self, screenshot):
-        print(f"[{timestamp()}] OCR: Starting request")
+        print(f"[{config.timestamp()}] OCR: Starting request")
         try:
             img = Image.open(io.BytesIO(screenshot))
             text = pytesseract.image_to_string(img)
-            print(f"[{timestamp()}] OCR: Extracted {len(text)} characters")
+            print(f"[{config.timestamp()}] OCR: Extracted {len(text)} characters")
             return text.strip()
         except Exception as e:
             print(f"OCR: Error occurred: {e}")
@@ -597,7 +577,7 @@ class Tray(QSystemTrayIcon):
             return
         
         access_token = self.auth_manager.session.access_token
-        url = EDGE_FUNCTION_URL
+        url = config.EDGE_FUNCTION_URL
         headers = [("Authorization", f"Bearer {access_token}")]
         
         ssl_context = ssl.create_default_context(cafile=certifi.where())
@@ -644,14 +624,14 @@ class Tray(QSystemTrayIcon):
                             print("Realtime: Session updated")
                             self.update_status.emit("Recording")
                         elif etype == "input_audio_buffer.committed":
-                            print(f"[{timestamp()}] Realtime: Audio committed")
+                            print(f"[{config.timestamp()}] Realtime: Audio committed")
                         elif etype == "conversation.item.input_audio_transcription.completed":
                             transcript = event.get("transcript", "").strip()
                             if transcript:
                                 user_transcript = transcript
-                                print(f"[{timestamp()}] Realtime: Transcript: {transcript}")
+                                print(f"[{config.timestamp()}] Realtime: Transcript: {transcript}")
                         elif etype == "response.created":
-                            print(f"[{timestamp()}] Realtime: Response created")
+                            print(f"[{config.timestamp()}] Realtime: Response created")
                         elif etype == "response.audio.delta":
                             delta = event.get("delta", "")
                             if delta:
@@ -662,7 +642,7 @@ class Tray(QSystemTrayIcon):
                                     pcm_bytes = b""
                                 # On first chunk, set up streaming playback
                                 if self._out_stream is None:
-                                    print(f"[{timestamp()}] Realtime: First audio chunk received")
+                                    print(f"[{config.timestamp()}] Realtime: First audio chunk received")
                                     self._start_streaming_playback()
                                 if self._out_queue is not None and pcm_bytes:
                                     try:
@@ -675,7 +655,7 @@ class Tray(QSystemTrayIcon):
                         elif etype == "response.audio.done":
                             self._stop_streaming_playback()
                         elif etype == "response.done":
-                            print(f"[{timestamp()}] Realtime: Response complete")
+                            print(f"[{config.timestamp()}] Realtime: Response complete")
                             self.update_status.emit("Ready")
                             
                             # Show notification
@@ -697,7 +677,7 @@ class Tray(QSystemTrayIcon):
                             self._rt_should_send_audio = False
                             self.ask_action.setText("Start Asking")
                             self.update_status.emit("Thinking...")
-                            print(f"[{timestamp()}] Realtime: Limit reached")
+                            print(f"[{config.timestamp()}] Realtime: Limit reached")
                         elif etype == "error":
                             self._stop_streaming_playback()
                             print(f"Realtime: Error event: {event}")
@@ -720,7 +700,7 @@ class Tray(QSystemTrayIcon):
                         if frames:
                             audio = np.concatenate(frames, axis=0).flatten()
                             pcm16 = np.clip(audio * 32767, -32768, 32767).astype(np.int16).tobytes()
-                            chunk_size = int(SR * 0.1 * 2)
+                            chunk_size = int(config.SR * 0.1 * 2)
                             for i in range(0, len(pcm16), chunk_size):
                                 chunk = pcm16[i:i+chunk_size]
                                 try:
@@ -760,7 +740,7 @@ class Tray(QSystemTrayIcon):
             print("Realtime: Session ended")
 
     def play_audio(self, audio_bytes, wait=False, emit_start=True):
-        print(f"[{timestamp()}] Audio: Preparing playback")
+        print(f"[{config.timestamp()}] Audio: Preparing playback")
         try:
             if emit_start and not self._first_audio_played:
                 self._first_audio_played = True
@@ -775,29 +755,29 @@ class Tray(QSystemTrayIcon):
             sd.play(audio, fs)
             if wait:
                 sd.wait()
-            print(f"[{timestamp()}] Audio: Playback started")
+            print(f"[{config.timestamp()}] Audio: Playback started")
         except Exception as e:
             print(f"Audio playback error: {e}")
 
     def _start_streaming_playback(self):
-        print(f"[{timestamp()}] DBG start_stream: entry out_stream_set={self._out_stream is not None}, "
+        print(f"[{config.timestamp()}] DBG start_stream: entry out_stream_set={self._out_stream is not None}, "
             f"out_thread_alive={(self._out_thread.is_alive() if self._out_thread else False)}")
         if self._out_stream is not None:
-            print(f"[{timestamp()}] DBG start_stream: early-return because out_stream_set=True")
+            print(f"[{config.timestamp()}] DBG start_stream: early-return because out_stream_set=True")
             return  # already active this response
         self._out_queue = Queue()
         self._out_started = False
 
         # 24kHz mono PCM16 --> use RawOutputStream so we can write bytes directly
         self._out_stream = sd.RawOutputStream(
-            samplerate=SR,
+            samplerate=config.SR,
             channels=1,
             dtype='int16',
         )
         self._out_stream.start()
 
         def _writer():
-            print(f"[{timestamp()}] Streaming writer: Thread started")
+            print(f"[{config.timestamp()}] Streaming writer: Thread started")
             q = self._out_queue
             out_stream = self._out_stream
             try:
@@ -807,18 +787,18 @@ class Tray(QSystemTrayIcon):
                         chunk = q.get(timeout=0.1)
                     except Empty:
                         # If we already started and have data, try to flush what we have
-                        print(f"[{timestamp()}] Streaming writer: Empty queue")
+                        print(f"[{config.timestamp()}] Streaming writer: Empty queue")
                         if self._out_started and buf:
                             out_stream.write(bytes(buf))
                             buf.clear()
                         continue
                     if chunk is None:
-                        print(f"[{timestamp()}] Streaming writer: Received sentinel, flushing {len(buf)} bytes")
+                        print(f"[{config.timestamp()}] Streaming writer: Received sentinel, flushing {len(buf)} bytes")
                         # Sentinel: flush any remaining and exit
                         if buf:
                             out_stream.write(bytes(buf))
                             buf.clear()
-                        print(f"[{timestamp()}] Streaming writer: Exiting main loop")
+                        print(f"[{config.timestamp()}] Streaming writer: Exiting main loop")
                         break
 
                     # Accumulate bytes
@@ -836,7 +816,7 @@ class Tray(QSystemTrayIcon):
                                 pass
 
                     # After start, write out in chunks as they arrive
-                    if self._out_started and len(buf) >= (BLOCKSIZE * 2):  # ~20ms worth
+                    if self._out_started and len(buf) >= (config.BLOCKSIZE * 2):  # ~20ms worth
                         out_stream.write(bytes(buf))
                         buf.clear()
 
@@ -844,10 +824,10 @@ class Tray(QSystemTrayIcon):
             except Exception as e:
                 print(f"Streaming audio writer error: {e}")
             finally:
-                print(f"[{timestamp()}] Streaming writer: In finally block, closing stream")
+                print(f"[{config.timestamp()}] Streaming writer: In finally block, closing stream")
                 try:
                     if out_stream:
-                        print(f"[{timestamp()}] DBG writer_finally: exiting; out_stream_set_before_close={out_stream is not None}")
+                        print(f"[{config.timestamp()}] DBG writer_finally: exiting; out_stream_set_before_close={out_stream is not None}")
                         out_stream.stop()
                         out_stream.close()
                 except Exception:
@@ -885,12 +865,12 @@ class Tray(QSystemTrayIcon):
         self._out_started = False
 
     def _stop_recording_and_process(self):
-        print(f"[{timestamp()}] Recording: Stop requested")
+        print(f"[{config.timestamp()}] Recording: Stop requested")
 
         # Snapshot pending bytes for logging (not used for logic)
         with self._lock:
             pending_bytes = sum(chunk.size for chunk in self._buf)
-        print(f"[{timestamp()}] Recording: Pending audio (pre-stop): {pending_bytes} bytes")
+        print(f"[{config.timestamp()}] Recording: Pending audio (pre-stop): {pending_bytes} bytes")
 
         if not self.is_recording:
             self.update_status.emit("No recording to process")
@@ -902,7 +882,7 @@ class Tray(QSystemTrayIcon):
             if self._stream:
                 self._stream.stop()
                 self._stream.close()
-                print(f"[{timestamp()}] Recording: Stream stopped and closed")
+                print(f"[{config.timestamp()}] Recording: Stream stopped and closed")
         finally:
             self._stream = None
             self.is_recording = False
@@ -910,7 +890,7 @@ class Tray(QSystemTrayIcon):
         # 2) DRAIN: keep the writer task running until the ring buffer is empty.
         #    Do NOT set _rt_should_send_audio False yet; that would strand frames.
         #    We wait deterministically on the actual buffer state.
-        print(f"[{timestamp()}] Recording: Draining pending audio to server")
+        print(f"[{config.timestamp()}] Recording: Draining pending audio to server")
         while True:
             with self._lock:
                 buf_empty = (len(self._buf) == 0)
@@ -921,7 +901,7 @@ class Tray(QSystemTrayIcon):
 
         # Finalize: use cached OCR result
         self._rt_should_send_audio = False
-        print(f"[{timestamp()}] Recording: Drain complete; writer will idle")
+        print(f"[{config.timestamp()}] Recording: Drain complete; writer will idle")
 
         # 3) Take screenshot (same as before)
         self.update_status.emit("Finalizing")
@@ -936,7 +916,7 @@ class Tray(QSystemTrayIcon):
 def main():
     print("Main: Launching Tray app")
     app = QApplication(sys.argv)
-    with open(asset_path("styles/base.qss"), "r") as f:
+    with open(config.asset_path("styles/base.qss"), "r") as f:
         app.setStyleSheet(f.read())
     app.setQuitOnLastWindowClosed(False) #keep running in tray
     
