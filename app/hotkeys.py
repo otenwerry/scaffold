@@ -1,6 +1,7 @@
 
 import ctypes
 from ctypes import c_uint32, c_void_p, c_int32, byref, POINTER
+import sys
 
 _IS_MAC = (sys.platform == "darwin")
 if _IS_MAC:
