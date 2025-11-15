@@ -2,6 +2,7 @@ from auth import AuthManager, OTPDialog
 from hotkeys import install_global_hotkey, uninstall_global_hotkey
 import config
 from ocr import ocr
+from ui.settings import SettingsDialog
 
 import sys
 import os
@@ -35,7 +36,6 @@ from PIL import Image
 from collections import deque
 from pathlib import Path
 from datetime import datetime
-from ui.settings import SettingsDialog
 from typing import Optional
 from websockets.asyncio.client import connect as ws_connect
 import ssl
