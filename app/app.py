@@ -382,30 +382,18 @@ class Tray(QSystemTrayIcon):
         self.update_status.emit("Recording")
         self.show_notification.emit("Scaffold", "", "Asking…")
         print(f"[{config.timestamp()}] Recording: Started (realtime)")
-        try:
-            with mss.mss() as sct:
-                img = sct.grab(sct.monitors[0])
-                png_bytes = mss.tools.to_png(img.rgb, img.size)
-            print(f"[{config.timestamp()}] Screenshot: Captured for OCR")
-        except Exception as e:
-            print(f"Screenshot: Error occurred: {e}")
-            png_bytes = b""
     
-        def _run_ocr_sync_wrapper(png):
+        def _run_ocr_sync_wrapper():
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
             try:
-                '''if APPLE_OCR:
-                    txt = loop.run_until_complete(self._apple_ocr(png))
-                else:
-                    txt = loop.run_until_complete(self._ocr(png))'''
-                txt = loop.run_until_complete(self._apple_ocr(png))
+                txt = loop.run_until_complete(self.ocr())
                 return txt
             finally:
                 loop.close()
 
         # Submit OCR to executor and cache the result when done
-        self._ocr_future = self.executor.submit(_run_ocr_sync_wrapper, png_bytes)
+        self._ocr_future = self.executor.submit(_run_ocr_sync_wrapper)
 
         def _cache_ocr_result(fut):
             try:
@@ -460,14 +448,7 @@ class Tray(QSystemTrayIcon):
             else:
                 print(f"[{config.timestamp()}] Realtime: No early OCR future; taking fallback screenshot")
                 try:
-                    with mss.mss() as sct:
-                        img = sct.grab(sct.monitors[0])
-                        png_bytes = mss.tools.to_png(img.rgb, img.size)
-                    '''if APPLE_OCR:
-                        ocr_text = loop.run_until_complete(self._apple_ocr(png_bytes))
-                    else:
-                        ocr_text = loop.run_until_complete(self._ocr(png_bytes))'''
-                    ocr_text = loop.run_until_complete(self._apple_ocr(png_bytes))
+                    ocr_text = loop.run_until_complete(self.ocr())
                     self._ocr_text_cached = ocr_text or ""
                     print(f"[{config.timestamp()}] Realtime: Fallback OCR completed, {len(self._ocr_text_cached)} chars")
                 except Exception as e:
@@ -504,19 +485,7 @@ class Tray(QSystemTrayIcon):
                 pass
         finally:
             loop.close()
-
-    async def _send_ocr_and_respond(self, ocr_text):
-        if not self._rt_ws:
-            return
-        
-        print(f"[{config.timestamp()}] Realtime: Sending OCR text")
-        
-        if ocr_text and ocr_text.strip():
-            await self._rt_ws.send(json.dumps({
-                "type": "screen_context",
-                "text": ocr_text
-            }))
-    
+  
     async def _send_client_end(self):
         if self._rt_ws:
             await self._rt_ws.send(json.dumps({"type": "client.end"}))
@@ -526,21 +495,20 @@ class Tray(QSystemTrayIcon):
             print("Audio status:", status)
         with self._lock:
             self._buf.append(indata.copy())
-
-    '''async def _ocr(self, screenshot):
-        print(f"[{config.timestamp()}] OCR: Starting request")
+    
+    async def ocr(self):
+        # Capture screenshot and convert to PNG
         try:
-            img = Image.open(io.BytesIO(screenshot))
-            text = pytesseract.image_to_string(img)
-            print(f"[{config.timestamp()}] OCR: Extracted {len(text)} characters")
-            return text.strip()
+            with mss.mss() as sct:
+                img = sct.grab(sct.monitors[0])
+                png_bytes = mss.tools.to_png(img.rgb, img.size)
+            print(f"[{config.timestamp()}] Screenshot: Captured for OCR")
         except Exception as e:
-            print(f"OCR: Error occurred: {e}")
-            return f"OCR: Error occurred: {e}"
-'''
-    async def _apple_ocr(self, screenshot):
+            print(f"Screenshot: Error occurred: {e}")
+            return ""
+        
         with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp:
-            tmp.write(screenshot)
+            tmp.write(png_bytes)
             tmp_path = tmp.name
         try:
             url = NSURL.fileURLWithPath_(tmp_path)
