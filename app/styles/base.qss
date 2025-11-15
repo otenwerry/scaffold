@@ -4,7 +4,6 @@
 
 #SettingsTitle {
   font-weight: 600;
-  color: rgb(61,61,61);
   font-size: 14px;
 }
 
@@ -13,14 +12,9 @@
   line-height: 1.5;
 }
 
-#InstructionsBody {
-    color: rgb(61,61,61);
-}
-
 #InstructionsBody .kbd {
   padding: 1px 6px;
   border: none;
-  color: rgb(61,61,61);
 }
 
 #InstructionsBody .dot {
