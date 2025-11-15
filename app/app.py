@@ -1,6 +1,7 @@
 from auth import AuthManager, OTPDialog
 from hotkeys import install_global_hotkey, uninstall_global_hotkey
 import config
+from ocr import ocr
 
 import sys
 import os
@@ -26,7 +27,6 @@ from PySide6.QtCore import Qt
 import sounddevice as sd
 import numpy as np
 import wave, threading, time, base64, io, tempfile
-import mss
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
 #from pynput import keyboard as pk
@@ -44,12 +44,7 @@ from datetime import datetime
 from queue import Queue, Empty
 import json
 
-from Foundation import NSURL
-from Vision import (
-    VNImageRequestHandler,
-    VNRecognizeTextRequest,
-    VNRequestTextRecognitionLevelAccurate,
-)
+
 
 
         
@@ -384,7 +379,7 @@ class Tray(QSystemTrayIcon):
         print(f"[{config.timestamp()}] Recording: Started (realtime)")
 
         # Submit OCR to executor and cache the result when done
-        self._ocr_future = self.executor.submit(self.ocr)
+        self._ocr_future = self.executor.submit(ocr)
 
         def _cache_ocr_result(fut):
             try:
@@ -439,7 +434,7 @@ class Tray(QSystemTrayIcon):
             else:
                 print(f"[{config.timestamp()}] Realtime: No early OCR future; taking fallback screenshot")
                 try:
-                    ocr_text = self.ocr()
+                    ocr_text = ocr()
                     self._ocr_text_cached = ocr_text or ""
                     print(f"[{config.timestamp()}] Realtime: Fallback OCR completed, {len(self._ocr_text_cached)} chars")
                 except Exception as e:
@@ -486,46 +481,7 @@ class Tray(QSystemTrayIcon):
             print("Audio status:", status)
         with self._lock:
             self._buf.append(indata.copy())
-    
-    def ocr(self):
-        # Capture screenshot and convert to PNG
-        try:
-            with mss.mss() as sct:
-                img = sct.grab(sct.monitors[0])
-                png_bytes = mss.tools.to_png(img.rgb, img.size)
-            print(f"[{config.timestamp()}] Screenshot: Captured for OCR")
-        except Exception as e:
-            print(f"Screenshot: Error occurred: {e}")
-            return ""
-        
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp:
-            tmp.write(png_bytes)
-            tmp_path = tmp.name
-        try:
-            url = NSURL.fileURLWithPath_(tmp_path)
-            request = VNRecognizeTextRequest.alloc().init()
-            request.setRecognitionLevel_(VNRequestTextRecognitionLevelAccurate)
-            request.setUsesLanguageCorrection_(True)
-            request.setRecognitionLanguages_(["en-US"])
-            handler = VNImageRequestHandler.alloc().initWithURL_options_(url, None)
-            ok, err = handler.performRequests_error_([request], None)
-            if not ok:
-                raise RuntimeError(f"Vision API: Error performing request: {err}")
-            observations = request.results() or []
-            lines = []
-            for obs in observations:
-                candidates = obs.topCandidates_(1)
-                if candidates:
-                    lines.append(str(candidates[0].string()))
-            text = "\n".join(lines)
-            print(f"OCR: Apple OCR: {len(text)} characters")
-            return text.strip()
-        finally:
-            try:
-                os.unlink(tmp_path)
-            except Exception:
-                pass
-       
+          
     async def _realtime_session_async(self):
         print("Realtime: Connecting to Edge Function")
         
