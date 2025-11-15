@@ -654,26 +654,6 @@ class Tray(QSystemTrayIcon):
             self._rt_writer_task = None
             print("Realtime: Session ended")
 
-    def play_audio(self, audio_bytes, wait=False, emit_start=True):
-        print(f"[{config.timestamp()}] Audio: Preparing playback")
-        try:
-            if emit_start and not self._first_audio_played:
-                self._first_audio_played = True
-                try:
-                    self.audio_started.emit()
-                except Exception as _:
-                    pass
-            with wave.open(io.BytesIO(audio_bytes), 'rb') as wav:
-                frames = wav.readframes(wav.getnframes())
-                audio = np.frombuffer(frames, dtype=np.int16)
-                fs = wav.getframerate()
-            sd.play(audio, fs)
-            if wait:
-                sd.wait()
-            print(f"[{config.timestamp()}] Audio: Playback started")
-        except Exception as e:
-            print(f"Audio playback error: {e}")
-
     def _start_streaming_playback(self):
         print(f"[{config.timestamp()}] DBG start_stream: entry out_stream_set={self._out_stream is not None}, "
             f"out_thread_alive={(self._out_thread.is_alive() if self._out_thread else False)}")
