@@ -382,18 +382,9 @@ class Tray(QSystemTrayIcon):
         self.update_status.emit("Recording")
         self.show_notification.emit("Scaffold", "", "Asking…")
         print(f"[{config.timestamp()}] Recording: Started (realtime)")
-    
-        def _run_ocr_sync_wrapper():
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            try:
-                txt = loop.run_until_complete(self.ocr())
-                return txt
-            finally:
-                loop.close()
 
         # Submit OCR to executor and cache the result when done
-        self._ocr_future = self.executor.submit(_run_ocr_sync_wrapper)
+        self._ocr_future = self.executor.submit(self.ocr)
 
         def _cache_ocr_result(fut):
             try:
@@ -448,7 +439,7 @@ class Tray(QSystemTrayIcon):
             else:
                 print(f"[{config.timestamp()}] Realtime: No early OCR future; taking fallback screenshot")
                 try:
-                    ocr_text = loop.run_until_complete(self.ocr())
+                    ocr_text = self.ocr()
                     self._ocr_text_cached = ocr_text or ""
                     print(f"[{config.timestamp()}] Realtime: Fallback OCR completed, {len(self._ocr_text_cached)} chars")
                 except Exception as e:
@@ -496,7 +487,7 @@ class Tray(QSystemTrayIcon):
         with self._lock:
             self._buf.append(indata.copy())
     
-    async def ocr(self):
+    def ocr(self):
         # Capture screenshot and convert to PNG
         try:
             with mss.mss() as sct:
