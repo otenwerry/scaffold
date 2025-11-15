@@ -647,7 +647,7 @@ class Tray(QSystemTrayIcon):
 
         except Exception as e:
             print(f"Realtime: Session error: {e}")
-            self.show_error.emit(f"Connection error: {e}")
+            self.show_error.emit(f"You've been logged out. Please close and reopen the app to log back in.")
         finally:
             self._rt_ws = None
             self._rt_session_active = False
