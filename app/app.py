@@ -1,3 +1,8 @@
+from auth import AuthManager, OTPDialog
+from hotkeys import install_global_hotkey, uninstall_global_hotkey
+import config
+from ocr import ocr
+
 import sys
 import os
 if getattr(sys, 'frozen', False):
@@ -9,7 +14,6 @@ if getattr(sys, 'frozen', False):
     except Exception as e:
         sys.stdout = open(os.devnull, 'w')
         sys.stderr = sys.stdout
-
 
 from PySide6.QtWidgets import (QApplication, QSystemTrayIcon, QMenu, 
                               QMainWindow, QVBoxLayout, QWidget, 
@@ -23,7 +27,6 @@ from PySide6.QtCore import Qt
 import sounddevice as sd
 import numpy as np
 import wave, threading, time, base64, io, tempfile
-import mss
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
 #from pynput import keyboard as pk
@@ -39,382 +42,13 @@ import ssl
 import certifi
 from datetime import datetime
 from queue import Queue, Empty
-
-from Foundation import NSURL
-from Vision import (
-    VNImageRequestHandler,
-    VNRecognizeTextRequest,
-    VNRequestTextRecognitionLevelAccurate,
-)
-from supabase import create_client, Client
 import json
-import keyring
-import ctypes
-from ctypes import c_uint32, c_void_p, c_int32, byref, POINTER
 
-_IS_MAC = (sys.platform == "darwin")
-if _IS_MAC:
-    _carbon = ctypes.CDLL('/System/Library/Frameworks/Carbon.framework/Carbon')
 
-    # --- Function signatures ---
-    GetApplicationEventTarget = _carbon.GetApplicationEventTarget
-    GetApplicationEventTarget.restype = c_void_p  # EventTargetRef
 
-    InstallEventHandler = _carbon.InstallEventHandler
-    RegisterEventHotKey = _carbon.RegisterEventHotKey
-    UnregisterEventHotKey = _carbon.UnregisterEventHotKey
-    UnregisterEventHotKey.restype = c_int32
-    UnregisterEventHotKey.argtypes = [c_void_p]
-
-    # --- Constants (correct) ---
-    kEventClassKeyboard = 0x6B657962  # 'keyb'
-    kEventHotKeyPressed = 5
-
-    # Carbon modifier masks
-    cmdKey     = 1 << 8
-    shiftKey   = 1 << 9
-    optionKey  = 1 << 11
-    controlKey = 1 << 12
-
-    # --- Structs ---
-    class EventTypeSpec(ctypes.Structure):
-        _fields_ = [("eventClass", c_uint32),
-                    ("eventKind",  c_uint32)]
-
-    class EventHotKeyID(ctypes.Structure):
-        _fields_ = [("signature", c_uint32),
-                    ("id",        c_uint32)]
-
-    # --- Callback type ---
-    EventHandlerUPP = ctypes.CFUNCTYPE(c_int32, c_void_p, c_void_p, c_void_p)
-
-    # Finish argtypes now that types exist
-    InstallEventHandler.restype  = c_int32
-    InstallEventHandler.argtypes = [
-        c_void_p,                 # target
-        EventHandlerUPP,          # handler
-        c_uint32,                 # numTypes
-        POINTER(EventTypeSpec),   # types
-        c_void_p,                 # userData
-        POINTER(c_void_p),        # outHandler
-    ]
-
-    RegisterEventHotKey.restype  = c_int32
-    RegisterEventHotKey.argtypes = [
-        c_uint32,                 # hotKeyCode
-        c_uint32,                 # hotKeyModifiers
-        POINTER(EventHotKeyID),   # hotKeyID
-        c_void_p,                 # eventTarget
-        c_uint32,                 # options
-        POINTER(c_void_p),        # outRef
-    ]
-
-    # --- Globals to keep references alive ---
-    _HOTKEY_REF = c_void_p()
-    _EVENT_HANDLER_REF = c_void_p()
-    _HOTKEY_CB_REF = None  # prevent GC
-
-    def install_global_hotkey(on_fire, vk_code=49, modifiers=(cmdKey | shiftKey)):
-        """
-        Registers a global hotkey (default: Cmd+Shift+Space).
-        """
-        if not _IS_MAC:
-            print("[Scaffold] Global hotkey skipped (non-macOS)")
-            return False
-
-        def _py_handler():
-            try:
-                on_fire()
-            except Exception as e:
-                print(f"[Scaffold] Hotkey handler error: {e}")
-
-        global _HOTKEY_CB_REF, _EVENT_HANDLER_REF, _HOTKEY_REF
-
-        @EventHandlerUPP
-        def _hotkey_handler(callRef, eventRef, userData):
-            _py_handler()
-            return 0  # noErr
-
-        _HOTKEY_CB_REF = _hotkey_handler  # keep alive
-
-        ets = EventTypeSpec(kEventClassKeyboard, kEventHotKeyPressed)
-        target = GetApplicationEventTarget()
-        status = InstallEventHandler(c_void_p(target), _HOTKEY_CB_REF, 1, byref(ets), None, byref(_EVENT_HANDLER_REF))
-        if status != 0:
-            print(f"[Scaffold] InstallEventHandler failed: {status}")
-            return False
-
-        hotkey_id = EventHotKeyID(signature=0x53636166, id=1)  # 'Scaf'
-        status = RegisterEventHotKey(
-            c_uint32(vk_code),
-            c_uint32(modifiers),
-            byref(hotkey_id),
-            c_void_p(target),
-            c_uint32(0),
-            byref(_HOTKEY_REF),
-        )
-        if status != 0:
-            print(f"[Scaffold] RegisterEventHotKey failed: {status}")
-            return False
-
-        print("[Scaffold] Global hotkey registered: Cmd+Shift+Space")
-        return True
-
-    def uninstall_global_hotkey():
-        if not _IS_MAC:
-            return
-        global _HOTKEY_REF
-        if _HOTKEY_REF:
-            try:
-                UnregisterEventHotKey(_HOTKEY_REF)
-            except Exception:
-                pass
-            _HOTKEY_REF = c_void_p()
-            print("[Scaffold] Global hotkey unregistered")
-else:
-    def install_global_hotkey(on_fire, vk_code=49, modifiers=0): return False
-    def uninstall_global_hotkey(): return
-
-SR = 24000
-FRAME_MS = 20 
-BLOCKSIZE = int(SR * FRAME_MS / 1000) 
-RING_SECONDS = 60 #60 seconds of audio to buffer
-SUPABASE_URL = "https://giohlugbdruxxlgzdtlj.supabase.co"
-SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdpb2hsdWdiZHJ1eHhsZ3pkdGxqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY0MTY4MzUsImV4cCI6MjA3MTk5MjgzNX0.wJVWrwyo3RLPyrM4D0867GhjenY1Z-lwaZFN4GUQloM"
-#APPLE_OCR = True
-EDGE_FUNCTION_URL = "wss://giohlugbdruxxlgzdtlj.supabase.co/functions/v1/realtime-proxy"
-
-def asset_path(name: str) -> str:
-    if getattr(sys, 'frozen', False):
-        if hasattr(sys, '_MEIPASS'):
-            base = sys._MEIPASS
-        elif sys.platform == 'darwin':
-            base = os.path.normpath(os.path.join(os.path.dirname(sys.executable), "..", "Resources"))
-        else:
-            base = os.path.dirname(sys.executable)
-    else:
-        base = os.path.dirname(os.path.abspath(__file__))
-    return os.path.join(base, name)
-
-def timestamp():
-    return datetime.now().strftime("%H:%M:%S.%f")[:-3]
-
-class OTPDialog(QDialog):
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setWindowTitle("Scaffold Sign In")
-        self.setFixedWidth(400)
-        self.setMinimumHeight(200)
-        
-        self.layout = QVBoxLayout()
-        
-        # Email input stage
-        self.email_widget = QWidget()
-        email_layout = QVBoxLayout()
-        email_layout.addWidget(QLabel("Enter your email to sign in:"))
-        self.email_input = QLineEdit()
-        self.email_input.setPlaceholderText("your@email.com")
-        self.email_input.returnPressed.connect(self.send_otp)
-        email_layout.addWidget(self.email_input)
-        self.send_code_btn = QPushButton("Send Code")
-        self.send_code_btn.clicked.connect(self.send_otp)
-        self.send_code_btn.setDefault(True)
-        self.send_code_btn.setAutoDefault(True)
-        email_layout.addWidget(self.send_code_btn)
-        self.email_widget.setLayout(email_layout)
-        
-        # OTP input stage
-        self.otp_widget = QWidget()
-        otp_layout = QVBoxLayout()
-        otp_layout.addWidget(QLabel("Enter the 6-digit code sent to your email:"))
-        self.otp_input = QLineEdit()
-        self.otp_input.setPlaceholderText("123456")
-        self.otp_input.setMaxLength(6)
-        # Let Enter in the OTP field trigger Verify
-        self.otp_input.returnPressed.connect(self.verify_otp)
-        otp_layout.addWidget(self.otp_input)
-
-        # Buttons for OTP stage
-        otp_buttons_layout = QVBoxLayout()
-        self.verify_btn = QPushButton("Verify")
-        self.verify_btn.clicked.connect(self.verify_otp)
-        # This will become the default once we switch stages
-        self.verify_btn.setAutoDefault(True)
-
-        self.resend_btn = QPushButton("Resend Code")
-        self.resend_btn.clicked.connect(self.send_otp)
-        otp_buttons_layout.addWidget(self.verify_btn)
-        otp_buttons_layout.addWidget(self.resend_btn)
-        otp_layout.addLayout(otp_buttons_layout)
-
-        self.otp_widget.setLayout(otp_layout)
-        # Hide OTP step until code is sent
-        self.otp_widget.hide()
-        
-        # Status label
-        self.status_label = QLabel("")
-        self.status_label.setWordWrap(True)
-        
-        # Add widgets to main layout
-        self.layout.addWidget(self.email_widget)
-        self.layout.addWidget(self.otp_widget)
-        self.layout.addWidget(self.status_label)
-        
-        # Cancel button
-        self.cancel_btn = QPushButton("Cancel")
-        self.cancel_btn.clicked.connect(self.reject)
-        self.layout.addWidget(self.cancel_btn)
-        
-        self.setLayout(self.layout)
-        
-        self.email = None
-        self.supabase = None
-    
-    def set_supabase_client(self, client):
-        """Set the Supabase client"""
-        self.supabase = client #why isn't this parameterized
-    
-    def send_otp(self):
-        """Send OTP to the provided email"""
-        email = self.email_input.text().strip()
-        if not email:
-            self.status_label.setText("Please enter an email address")
-            return
-        
-        self.email = email
-        self.status_label.setText("Sending code...")
-        self.send_code_btn.setEnabled(False)
-        
-        try:
-            # Use Supabase Auth to send OTP
-            response = self.supabase.auth.sign_in_with_otp({
-                "email": email,
-                "options": {
-                    "should_create_user": True  # Create user if doesn't exist
-                }
-            })
-            
-            self.status_label.setText(f"Code sent to {email}")
-            self.email_widget.hide()
-            self.otp_widget.show()
-            self.otp_input.setFocus()
-            self.adjustSize()
-            self.verify_btn.setDefault(True)
-            self.send_code_btn.setDefault(False)
-            
-        except Exception as e:
-            self.status_label.setText(f"Error: {str(e)}")
-            self.send_code_btn.setEnabled(True)
-    
-    def verify_otp(self):
-        """Verify the OTP code"""
-        otp = self.otp_input.text().strip()
-        if not otp or len(otp) != 6:
-            self.status_label.setText("Please enter a 6-digit code")
-            return
-        
-        self.status_label.setText("Verifying...")
-        self.verify_btn.setEnabled(False)
-        
-        try:
-            # Verify OTP with Supabase
-            response = self.supabase.auth.verify_otp({
-                "email": self.email,
-                "token": otp,
-                "type": "email"
-            })
-            
-            if response.user:
-                self.status_label.setText("Success! Signed in.")
-                self.accept()
-            else:
-                self.status_label.setText("Invalid code. Please try again.")
-                self.verify_btn.setEnabled(True)
-                
-        except Exception as e:
-            self.status_label.setText(f"Error: {str(e)}")
-            self.verify_btn.setEnabled(True)
-
-class AuthManager:
-    def __init__(self):
-        self.supabase: Client = None
-        self.user = None
-        self.session = None
-        self.service_name = "ScaffoldApp"
-        self._restored_once = False
-        self.init_supabase()
-    
-    def init_supabase(self):
-        """Initialize Supabase client"""
-        try:
-            self.supabase = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
-            # Try to restore session from secure storage
-            self.restore_session()
-        except Exception as e:
-            print(f"Error initializing Supabase: {e}")
-    
-    def save_session(self):
-        """Save session to secure storage"""
-        if self.session:
-            try:
-                # Use keyring for secure storage
-                session_data = json.dumps({
-                    'access_token': self.session.access_token,
-                    'refresh_token': self.session.refresh_token,
-                    'expires_at': self.session.expires_at,
-                    'user_id': self.user.id if self.user else None
-                })
-                keyring.set_password(self.service_name, "session", session_data)
-            except Exception as e:
-                print(f"Error saving session: {e}")
-    
-    def restore_session(self):
-        """Restore session from secure storage"""
-        if self._restored_once:
-            return False
-        self._restored_once = True
-        try:
-            session_data = keyring.get_password(self.service_name, "session")
-            if session_data:
-                data = json.loads(session_data)
-                # Set the session in Supabase client
-                response = self.supabase.auth.set_session(
-                    data['access_token'],
-                    data['refresh_token']
-                )
-                if response.user:
-                    self.user = response.user
-                    self.session = response.session
-                    print(f"Session restored for user: {self.user.email}")
-                    return True
-        except Exception as e:
-            print(f"Error restoring session: {e}")
-        return False
-    
-    def clear_session(self):
-        """Clear stored session"""
-        try:
-            keyring.delete_password(self.service_name, "session")
-        except:
-            pass
-    
-    def is_authenticated(self):
-        """Check if user is authenticated"""
-        return self.user is not None and self.session is not None
-    
-    def sign_out(self):
-        """Sign out the current user"""
-        try:
-            self.supabase.auth.sign_out()
-            self.user = None
-            self.session = None
-            self.clear_session()
-        except Exception as e:
-            print(f"Error signing out: {e}")
-    
 
         
-class TutorTray(QSystemTrayIcon):
+class Tray(QSystemTrayIcon):
     show_notification = Signal(str, str, str)
     update_status = Signal(str)
     toggle_ask = Signal()
@@ -430,7 +64,7 @@ class TutorTray(QSystemTrayIcon):
         self.setup_icon()
         #self.setup_tesseract()
         self.is_recording = False
-        self._buf = deque(maxlen=(RING_SECONDS * SR) // BLOCKSIZE) 
+        self._buf = deque(maxlen=(config.RING_SECONDS * config.SR) // config.BLOCKSIZE) 
         self._lock = threading.Lock() # lock for buffer
         self._stream = None # audio stream   
         self.show_notification.connect(self._show_notification, Qt.ConnectionType.QueuedConnection)
@@ -448,7 +82,7 @@ class TutorTray(QSystemTrayIcon):
         self._out_queue = None
         self._out_thread = None
         self._out_started = False
-        self._jitter_target_bytes = int(SR * 0.2 * 4) #400ms buffer
+        self._jitter_target_bytes = int(config.SR * 0.2 * 4) #400ms buffer
         self._playback_lock = threading.Lock()
  
         #pipeline state
@@ -462,12 +96,12 @@ class TutorTray(QSystemTrayIcon):
         self.show_error.connect(self._show_error, Qt.ConnectionType.QueuedConnection)
 
         #thinking animation
-        self._base_icon = QIcon(asset_path("logos/icon.png"))
+        self._base_icon = QIcon(config.asset_path("logos/icon.png"))
         self._thinking_icons = [
-            QIcon(asset_path("logos/gray.png")),
-            QIcon(asset_path("logos/blue1.png")),
-            QIcon(asset_path("logos/blue2.png")),
-            QIcon(asset_path("logos/blue3.png"))
+            QIcon(config.asset_path("logos/gray.png")),
+            QIcon(config.asset_path("logos/blue1.png")),
+            QIcon(config.asset_path("logos/blue2.png")),
+            QIcon(config.asset_path("logos/blue3.png"))
         ]
         self._thinking_index = 0
         self._animating = False
@@ -538,7 +172,7 @@ class TutorTray(QSystemTrayIcon):
     def setup_icon(self):
         print("Setting up icon")
         try:
-            self.setIcon(QIcon(asset_path("logos/icon.png")))
+            self.setIcon(QIcon(config.asset_path("logos/icon.png")))
         except:
             pixmap = QPixmap(32, 32)
             pixmap.fill(Qt.GlobalColor.transparent)
@@ -670,7 +304,7 @@ class TutorTray(QSystemTrayIcon):
         QMessageBox.critical(None, "Error", message)
 
     def on_ask(self):
-        print(f"[{timestamp()}] UI: Ask button clicked")
+        print(f"[{config.timestamp()}] UI: Ask button clicked")
         print(f"UI: Current state - is_recording={self.is_recording}, session_active={self._rt_session_active}, should_send={self._rt_should_send_audio}")
         if not self.auth_manager.is_authenticated():
             self.show_auth_dialog()
@@ -724,7 +358,7 @@ class TutorTray(QSystemTrayIcon):
             self._stop_recording_and_process()
 
     def _start_recording_realtime(self):
-        print(f"[{timestamp()}] Recording: Start requested (realtime)")
+        print(f"[{config.timestamp()}] Recording: Start requested (realtime)")
         self.ask_action.setText("Stop Asking")
         if self.is_recording:
             print("Recording: Already recording; ignoring start")
@@ -732,47 +366,26 @@ class TutorTray(QSystemTrayIcon):
         self._buf.clear()
         self._rt_should_send_audio = True
         self._stream = sd.InputStream(
-            samplerate=SR,
+            samplerate=config.SR,
             channels=1,
             dtype="float32",
-            blocksize=int(SR * FRAME_MS / 1000),
+            blocksize=int(config.SR * config.FRAME_MS / 1000),
             callback=self._audio_cb
         )
         self._stream.start()
         self.is_recording = True
         self.update_status.emit("Recording")
         self.show_notification.emit("Scaffold", "", "Asking…")
-        print(f"[{timestamp()}] Recording: Started (realtime)")
-        try:
-            with mss.mss() as sct:
-                img = sct.grab(sct.monitors[0])
-                png_bytes = mss.tools.to_png(img.rgb, img.size)
-            print(f"[{timestamp()}] Screenshot: Captured for OCR")
-        except Exception as e:
-            print(f"Screenshot: Error occurred: {e}")
-            png_bytes = b""
-    
-        def _run_ocr_sync_wrapper(png):
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            try:
-                '''if APPLE_OCR:
-                    txt = loop.run_until_complete(self._apple_ocr(png))
-                else:
-                    txt = loop.run_until_complete(self._ocr(png))'''
-                txt = loop.run_until_complete(self._apple_ocr(png))
-                return txt
-            finally:
-                loop.close()
+        print(f"[{config.timestamp()}] Recording: Started (realtime)")
 
         # Submit OCR to executor and cache the result when done
-        self._ocr_future = self.executor.submit(_run_ocr_sync_wrapper, png_bytes)
+        self._ocr_future = self.executor.submit(ocr)
 
         def _cache_ocr_result(fut):
             try:
                 txt = fut.result() or ""
                 self._ocr_text_cached = txt
-                print(f"[{timestamp()}] OCR: Completed, {len(txt)} chars")
+                print(f"[{config.timestamp()}] OCR: Completed, {len(txt)} chars")
             except Exception as e:
                 print(f"OCR: Future error: {e}")
 
@@ -795,7 +408,7 @@ class TutorTray(QSystemTrayIcon):
             print("Realtime: Session ended")
 
     def _finalize_realtime(self):
-        print(f"[{timestamp()}] Realtime: Finalizing with OCR (using early result if available)")
+        print(f"[{config.timestamp()}] Realtime: Finalizing with OCR (using early result if available)")
 
         # Run inside a worker thread (as before). Use a local loop only if we need to do last-chance OCR.
         loop = asyncio.new_event_loop()
@@ -812,25 +425,18 @@ class TutorTray(QSystemTrayIcon):
                 try:
                     ocr_text = self._ocr_future.result() or ""
                     self._ocr_text_cached = ocr_text
-                    print(f"[{timestamp()}] Realtime: OCR future joined at finalize, {len(ocr_text)} chars")
+                    print(f"[{config.timestamp()}] Realtime: OCR future joined at finalize, {len(ocr_text)} chars")
                 except Exception as e:
                     print(f"Realtime: OCR future error at finalize: {e}")
                     ocr_text = ""  # fall through to sending client.end anyway
 
             # 3) Defensive fallback: if no early OCR was started (shouldn't happen), do a last-chance screenshot+OCR.
             else:
-                print(f"[{timestamp()}] Realtime: No early OCR future; taking fallback screenshot")
+                print(f"[{config.timestamp()}] Realtime: No early OCR future; taking fallback screenshot")
                 try:
-                    with mss.mss() as sct:
-                        img = sct.grab(sct.monitors[0])
-                        png_bytes = mss.tools.to_png(img.rgb, img.size)
-                    '''if APPLE_OCR:
-                        ocr_text = loop.run_until_complete(self._apple_ocr(png_bytes))
-                    else:
-                        ocr_text = loop.run_until_complete(self._ocr(png_bytes))'''
-                    ocr_text = loop.run_until_complete(self._apple_ocr(png_bytes))
+                    ocr_text = ocr()
                     self._ocr_text_cached = ocr_text or ""
-                    print(f"[{timestamp()}] Realtime: Fallback OCR completed, {len(self._ocr_text_cached)} chars")
+                    print(f"[{config.timestamp()}] Realtime: Fallback OCR completed, {len(self._ocr_text_cached)} chars")
                 except Exception as e:
                     print(f"Realtime: Fallback screenshot/OCR error: {e}")
                     ocr_text = ""
@@ -844,9 +450,9 @@ class TutorTray(QSystemTrayIcon):
                         "type": "screen_context",
                         "text": ocr_text
                     }))
-                    print(f"[{timestamp()}] Realtime: OCR text sent")
+                    print(f"[{config.timestamp()}] Realtime: OCR text sent")
                 await self._send_client_end()
-                print(f"[{timestamp()}] Realtime: client.end sent")
+                print(f"[{config.timestamp()}] Realtime: client.end sent")
 
             # Schedule on the realtime loop if it’s alive
             if self._rt_loop and self._rt_ws:
@@ -860,24 +466,12 @@ class TutorTray(QSystemTrayIcon):
             try:
                 if self._rt_loop and self._rt_ws:
                     asyncio.run_coroutine_threadsafe(self._send_client_end(), self._rt_loop)
-                    print(f"[{timestamp()}] Realtime: client.end sent (fallback after OCR error)")
+                    print(f"[{config.timestamp()}] Realtime: client.end sent (fallback after OCR error)")
             except Exception:
                 pass
         finally:
             loop.close()
-
-    async def _send_ocr_and_respond(self, ocr_text):
-        if not self._rt_ws:
-            return
-        
-        print(f"[{timestamp()}] Realtime: Sending OCR text")
-        
-        if ocr_text and ocr_text.strip():
-            await self._rt_ws.send(json.dumps({
-                "type": "screen_context",
-                "text": ocr_text
-            }))
-    
+  
     async def _send_client_end(self):
         if self._rt_ws:
             await self._rt_ws.send(json.dumps({"type": "client.end"}))
@@ -887,47 +481,7 @@ class TutorTray(QSystemTrayIcon):
             print("Audio status:", status)
         with self._lock:
             self._buf.append(indata.copy())
-
-    '''async def _ocr(self, screenshot):
-        print(f"[{timestamp()}] OCR: Starting request")
-        try:
-            img = Image.open(io.BytesIO(screenshot))
-            text = pytesseract.image_to_string(img)
-            print(f"[{timestamp()}] OCR: Extracted {len(text)} characters")
-            return text.strip()
-        except Exception as e:
-            print(f"OCR: Error occurred: {e}")
-            return f"OCR: Error occurred: {e}"
-'''
-    async def _apple_ocr(self, screenshot):
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp:
-            tmp.write(screenshot)
-            tmp_path = tmp.name
-        try:
-            url = NSURL.fileURLWithPath_(tmp_path)
-            request = VNRecognizeTextRequest.alloc().init()
-            request.setRecognitionLevel_(VNRequestTextRecognitionLevelAccurate)
-            request.setUsesLanguageCorrection_(True)
-            request.setRecognitionLanguages_(["en-US"])
-            handler = VNImageRequestHandler.alloc().initWithURL_options_(url, None)
-            ok, err = handler.performRequests_error_([request], None)
-            if not ok:
-                raise RuntimeError(f"Vision API: Error performing request: {err}")
-            observations = request.results() or []
-            lines = []
-            for obs in observations:
-                candidates = obs.topCandidates_(1)
-                if candidates:
-                    lines.append(str(candidates[0].string()))
-            text = "\n".join(lines)
-            print(f"OCR: Apple OCR: {len(text)} characters")
-            return text.strip()
-        finally:
-            try:
-                os.unlink(tmp_path)
-            except Exception:
-                pass
-       
+          
     async def _realtime_session_async(self):
         print("Realtime: Connecting to Edge Function")
         
@@ -938,7 +492,7 @@ class TutorTray(QSystemTrayIcon):
             return
         
         access_token = self.auth_manager.session.access_token
-        url = EDGE_FUNCTION_URL
+        url = config.EDGE_FUNCTION_URL
         headers = [("Authorization", f"Bearer {access_token}")]
         
         ssl_context = ssl.create_default_context(cafile=certifi.where())
@@ -985,14 +539,14 @@ class TutorTray(QSystemTrayIcon):
                             print("Realtime: Session updated")
                             self.update_status.emit("Recording")
                         elif etype == "input_audio_buffer.committed":
-                            print(f"[{timestamp()}] Realtime: Audio committed")
+                            print(f"[{config.timestamp()}] Realtime: Audio committed")
                         elif etype == "conversation.item.input_audio_transcription.completed":
                             transcript = event.get("transcript", "").strip()
                             if transcript:
                                 user_transcript = transcript
-                                print(f"[{timestamp()}] Realtime: Transcript: {transcript}")
+                                print(f"[{config.timestamp()}] Realtime: Transcript: {transcript}")
                         elif etype == "response.created":
-                            print(f"[{timestamp()}] Realtime: Response created")
+                            print(f"[{config.timestamp()}] Realtime: Response created")
                         elif etype == "response.audio.delta":
                             delta = event.get("delta", "")
                             if delta:
@@ -1003,7 +557,7 @@ class TutorTray(QSystemTrayIcon):
                                     pcm_bytes = b""
                                 # On first chunk, set up streaming playback
                                 if self._out_stream is None:
-                                    print(f"[{timestamp()}] Realtime: First audio chunk received")
+                                    print(f"[{config.timestamp()}] Realtime: First audio chunk received")
                                     self._start_streaming_playback()
                                 if self._out_queue is not None and pcm_bytes:
                                     try:
@@ -1016,7 +570,7 @@ class TutorTray(QSystemTrayIcon):
                         elif etype == "response.audio.done":
                             self._stop_streaming_playback()
                         elif etype == "response.done":
-                            print(f"[{timestamp()}] Realtime: Response complete")
+                            print(f"[{config.timestamp()}] Realtime: Response complete")
                             self.update_status.emit("Ready")
                             
                             # Show notification
@@ -1038,7 +592,7 @@ class TutorTray(QSystemTrayIcon):
                             self._rt_should_send_audio = False
                             self.ask_action.setText("Start Asking")
                             self.update_status.emit("Thinking...")
-                            print(f"[{timestamp()}] Realtime: Limit reached")
+                            print(f"[{config.timestamp()}] Realtime: Limit reached")
                         elif etype == "error":
                             self._stop_streaming_playback()
                             print(f"Realtime: Error event: {event}")
@@ -1061,7 +615,7 @@ class TutorTray(QSystemTrayIcon):
                         if frames:
                             audio = np.concatenate(frames, axis=0).flatten()
                             pcm16 = np.clip(audio * 32767, -32768, 32767).astype(np.int16).tobytes()
-                            chunk_size = int(SR * 0.1 * 2)
+                            chunk_size = int(config.SR * 0.1 * 2)
                             for i in range(0, len(pcm16), chunk_size):
                                 chunk = pcm16[i:i+chunk_size]
                                 try:
@@ -1100,45 +654,25 @@ class TutorTray(QSystemTrayIcon):
             self._rt_writer_task = None
             print("Realtime: Session ended")
 
-    def play_audio(self, audio_bytes, wait=False, emit_start=True):
-        print(f"[{timestamp()}] Audio: Preparing playback")
-        try:
-            if emit_start and not self._first_audio_played:
-                self._first_audio_played = True
-                try:
-                    self.audio_started.emit()
-                except Exception as _:
-                    pass
-            with wave.open(io.BytesIO(audio_bytes), 'rb') as wav:
-                frames = wav.readframes(wav.getnframes())
-                audio = np.frombuffer(frames, dtype=np.int16)
-                fs = wav.getframerate()
-            sd.play(audio, fs)
-            if wait:
-                sd.wait()
-            print(f"[{timestamp()}] Audio: Playback started")
-        except Exception as e:
-            print(f"Audio playback error: {e}")
-
     def _start_streaming_playback(self):
-        print(f"[{timestamp()}] DBG start_stream: entry out_stream_set={self._out_stream is not None}, "
+        print(f"[{config.timestamp()}] DBG start_stream: entry out_stream_set={self._out_stream is not None}, "
             f"out_thread_alive={(self._out_thread.is_alive() if self._out_thread else False)}")
         if self._out_stream is not None:
-            print(f"[{timestamp()}] DBG start_stream: early-return because out_stream_set=True")
+            print(f"[{config.timestamp()}] DBG start_stream: early-return because out_stream_set=True")
             return  # already active this response
         self._out_queue = Queue()
         self._out_started = False
 
         # 24kHz mono PCM16 --> use RawOutputStream so we can write bytes directly
         self._out_stream = sd.RawOutputStream(
-            samplerate=SR,
+            samplerate=config.SR,
             channels=1,
             dtype='int16',
         )
         self._out_stream.start()
 
         def _writer():
-            print(f"[{timestamp()}] Streaming writer: Thread started")
+            print(f"[{config.timestamp()}] Streaming writer: Thread started")
             q = self._out_queue
             out_stream = self._out_stream
             try:
@@ -1148,18 +682,18 @@ class TutorTray(QSystemTrayIcon):
                         chunk = q.get(timeout=0.1)
                     except Empty:
                         # If we already started and have data, try to flush what we have
-                        print(f"[{timestamp()}] Streaming writer: Empty queue")
+                        print(f"[{config.timestamp()}] Streaming writer: Empty queue")
                         if self._out_started and buf:
                             out_stream.write(bytes(buf))
                             buf.clear()
                         continue
                     if chunk is None:
-                        print(f"[{timestamp()}] Streaming writer: Received sentinel, flushing {len(buf)} bytes")
+                        print(f"[{config.timestamp()}] Streaming writer: Received sentinel, flushing {len(buf)} bytes")
                         # Sentinel: flush any remaining and exit
                         if buf:
                             out_stream.write(bytes(buf))
                             buf.clear()
-                        print(f"[{timestamp()}] Streaming writer: Exiting main loop")
+                        print(f"[{config.timestamp()}] Streaming writer: Exiting main loop")
                         break
 
                     # Accumulate bytes
@@ -1177,7 +711,7 @@ class TutorTray(QSystemTrayIcon):
                                 pass
 
                     # After start, write out in chunks as they arrive
-                    if self._out_started and len(buf) >= (BLOCKSIZE * 2):  # ~20ms worth
+                    if self._out_started and len(buf) >= (config.BLOCKSIZE * 2):  # ~20ms worth
                         out_stream.write(bytes(buf))
                         buf.clear()
 
@@ -1185,10 +719,10 @@ class TutorTray(QSystemTrayIcon):
             except Exception as e:
                 print(f"Streaming audio writer error: {e}")
             finally:
-                print(f"[{timestamp()}] Streaming writer: In finally block, closing stream")
+                print(f"[{config.timestamp()}] Streaming writer: In finally block, closing stream")
                 try:
                     if out_stream:
-                        print(f"[{timestamp()}] DBG writer_finally: exiting; out_stream_set_before_close={out_stream is not None}")
+                        print(f"[{config.timestamp()}] DBG writer_finally: exiting; out_stream_set_before_close={out_stream is not None}")
                         out_stream.stop()
                         out_stream.close()
                 except Exception:
@@ -1226,12 +760,12 @@ class TutorTray(QSystemTrayIcon):
         self._out_started = False
 
     def _stop_recording_and_process(self):
-        print(f"[{timestamp()}] Recording: Stop requested")
+        print(f"[{config.timestamp()}] Recording: Stop requested")
 
         # Snapshot pending bytes for logging (not used for logic)
         with self._lock:
             pending_bytes = sum(chunk.size for chunk in self._buf)
-        print(f"[{timestamp()}] Recording: Pending audio (pre-stop): {pending_bytes} bytes")
+        print(f"[{config.timestamp()}] Recording: Pending audio (pre-stop): {pending_bytes} bytes")
 
         if not self.is_recording:
             self.update_status.emit("No recording to process")
@@ -1243,7 +777,7 @@ class TutorTray(QSystemTrayIcon):
             if self._stream:
                 self._stream.stop()
                 self._stream.close()
-                print(f"[{timestamp()}] Recording: Stream stopped and closed")
+                print(f"[{config.timestamp()}] Recording: Stream stopped and closed")
         finally:
             self._stream = None
             self.is_recording = False
@@ -1251,7 +785,7 @@ class TutorTray(QSystemTrayIcon):
         # 2) DRAIN: keep the writer task running until the ring buffer is empty.
         #    Do NOT set _rt_should_send_audio False yet; that would strand frames.
         #    We wait deterministically on the actual buffer state.
-        print(f"[{timestamp()}] Recording: Draining pending audio to server")
+        print(f"[{config.timestamp()}] Recording: Draining pending audio to server")
         while True:
             with self._lock:
                 buf_empty = (len(self._buf) == 0)
@@ -1262,7 +796,7 @@ class TutorTray(QSystemTrayIcon):
 
         # Finalize: use cached OCR result
         self._rt_should_send_audio = False
-        print(f"[{timestamp()}] Recording: Drain complete; writer will idle")
+        print(f"[{config.timestamp()}] Recording: Drain complete; writer will idle")
 
         # 3) Take screenshot (same as before)
         self.update_status.emit("Finalizing")
@@ -1275,14 +809,13 @@ class TutorTray(QSystemTrayIcon):
 
 
 def main():
-    print("Main: Launching TutorTray app")
-    #app = TutorTray()
+    print("Main: Launching Tray app")
     app = QApplication(sys.argv)
-    with open(asset_path("styles/base.qss"), "r") as f:
+    with open(config.asset_path("styles/base.qss"), "r") as f:
         app.setStyleSheet(f.read())
     app.setQuitOnLastWindowClosed(False) #keep running in tray
     
-    tray = TutorTray(app)
+    tray = Tray(app)
     print("Main: Starting run loop")
     #app.run()
     sys.exit(app.exec())
