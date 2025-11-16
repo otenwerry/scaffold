@@ -198,12 +198,12 @@ class Tray(QSystemTrayIcon):
         if self.auth_manager.is_authenticated():
             self.login_action.setText(f"Signed in as {self.auth_manager.user.email}")
             self.login_action.setEnabled(False)
-            #self.signout_action.setVisible(True)
+            self.signout_action.setVisible(True)
             self.ask_action.setEnabled(True)
         else:
             self.login_action.setText("Sign In...")
             self.login_action.setEnabled(True)
-            #self.signout_action.setVisible(False)
+            self.signout_action.setVisible(False)
             self.ask_action.setEnabled(False)
     
     def setup_icon(self):

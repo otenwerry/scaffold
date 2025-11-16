@@ -40,6 +40,36 @@ export default function LogIn() {
     };
   }, [supabase]);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    async function validateSession() {
+      if (!session) return;
+
+      const { data, error } = await supabase.auth.getUser();
+
+      if (cancelled) return;
+
+      if (error) {
+        console.warn("Supabase session invalid, clearing it", error);
+
+        // Wipe out the stale browser session so we force a real re-login.
+        await supabase.auth.signOut();
+
+        if (!cancelled) {
+          setSession(null);
+        }
+      }
+    }
+
+    validateSession();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [session, supabase]);
+
+
   const handleLoginWithGoogle = async () => {
     const redirectTo =
       typeof window !== "undefined"
