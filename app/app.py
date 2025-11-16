@@ -161,12 +161,12 @@ class Tray(QSystemTrayIcon):
         if self.auth_manager.is_authenticated():
             self.login_action.setText(f"Signed in as {self.auth_manager.user.email}")
             self.login_action.setEnabled(False)
-            self.signout_action.setVisible(True)
+            #self.signout_action.setVisible(True)
             self.ask_action.setEnabled(True)
         else:
             self.login_action.setText("Sign In...")
             self.login_action.setEnabled(True)
-            self.signout_action.setVisible(False)
+            #self.signout_action.setVisible(False)
             self.ask_action.setEnabled(False)
     
     def setup_icon(self):
@@ -211,7 +211,14 @@ class Tray(QSystemTrayIcon):
         self.settings_action.triggered.connect(self.show_settings)
         menu.addAction(self.settings_action)
 
-        # Sign out action (hidden)
+        menu.addSeparator()
+
+        # Login/Sign in action
+        self.login_action = QAction("Sign In...")
+        self.login_action.triggered.connect(self.show_auth_dialog)
+        menu.addAction(self.login_action)
+
+        # Sign out action (hidden by default)
         self.signout_action = QAction("Sign out")
         self.signout_action.triggered.connect(self.sign_out)
         self.signout_action.setVisible(False)
@@ -225,6 +232,9 @@ class Tray(QSystemTrayIcon):
         menu.addAction(self.quit_action)
         
         self.setContextMenu(menu)
+        
+        # Set initial auth state
+        self.update_menu_auth_state()
     
     def sign_out(self):
         self.auth_manager.sign_out()
