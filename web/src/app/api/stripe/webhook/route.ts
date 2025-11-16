@@ -26,15 +26,15 @@ async function updateSubscriptionForCustomer(opts: {
   const isSubscribed = activeStatuses.has(status);
 
   // Find the profile row to update
-  let query = supabaseAdmin.schema("app").from("profiles");
+  const baseQuery = supabaseAdmin.schema("app").from("profiles");
 
-  if (supabaseUserId) {
-    query = query.eq("user_id", supabaseUserId);
-  } else {
-    query = query.eq("stripe_customer_id", stripeCustomerId);
-  }
-
-  const { data: profiles, error: fetchError } = await query.select("user_id").limit(1);
+  const profileQuery = supabaseUserId
+    ? baseQuery.eq("user_id", supabaseUserId)
+    : baseQuery.eq("stripe_customer_id", stripeCustomerId);
+  
+  const { data: profiles, error: fetchError } = await profileQuery
+    .select("user_id")
+    .limit(1);
 
   if (fetchError) {
     console.error("Error fetching profile in webhook:", fetchError);
