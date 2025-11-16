@@ -361,7 +361,7 @@ class Tray(QSystemTrayIcon):
                     cancel_btn = dlg.addButton("Cancel", QMessageBox.ButtonRole.RejectRole)
                     dlg.exec()
                     if dlg.clickedButton() == subscribe_btn:
-                        self.auth_manager.open_subscription_page()
+                        self.auth_manager.open_subscribe_page()
                 else:
                     # Subscribed user hit monthly cap
                     self.show_error.emit("You've hit your monthly usage limit.")
