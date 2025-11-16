@@ -56,7 +56,25 @@ export async function POST(req: NextRequest) {
     }
 
     let stripeCustomerId = profile?.stripe_customer_id as string | null;
-
+    if (stripeCustomerId) {
+      try {
+        const customer = await stripe.customers.retrieve(stripeCustomerId);
+    
+        // If this was a deleted customer, treat as missing too
+        if ((customer as Stripe.DeletedCustomer).deleted) {
+          stripeCustomerId = null;
+        }
+      } catch (err: any) {
+        // Typical stale ID / wrong environment case:
+        // Stripe throws a "resource_missing" error → treat as if we had no customer
+        if (err && typeof err === "object" && (err as any).code === "resource_missing") {
+          stripeCustomerId = null;
+        } else {
+          // Something else is wrong (network, auth, etc.) → rethrow
+          throw err;
+        }
+      }
+    }
     if (!stripeCustomerId) {
       // Create a Stripe customer if this is the first time
       const customer = await stripe.customers.create({
@@ -65,9 +83,9 @@ export async function POST(req: NextRequest) {
           supabase_user_id: userId,
         },
       });
-
+    
       stripeCustomerId = customer.id;
-
+    
       await supabaseAdmin
         .schema("app")
         .from("profiles")
@@ -109,7 +127,7 @@ export async function POST(req: NextRequest) {
   } catch (err: unknown) {
     console.error("Error creating checkout session", err);
     return NextResponse.json(
-      { error: "Internal error creating checkout session" },
+      { error: err instanceof Error ? err.message : "Unknown error" },
       { status: 500 }
     );
   }
