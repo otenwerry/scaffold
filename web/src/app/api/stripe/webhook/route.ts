@@ -14,59 +14,71 @@ const supabaseAdmin = createClient(
 
 // Helper: update subscription status in app.profiles
 async function updateSubscriptionForCustomer(opts: {
-  stripeCustomerId: string;
-  stripeSubscriptionId: string | null;
-  status: Stripe.Subscription.Status | string;
-  supabaseUserId?: string | null;
-}) {
-  const { stripeCustomerId, stripeSubscriptionId, status, supabaseUserId } = opts;
-
-  // Decide if we consider this "subscribed"
-  const activeStatuses = new Set(["active", "trialing"]);
-  const isSubscribed = activeStatuses.has(status);
-
-  // Find the profile row to update
-  const baseQuery = supabaseAdmin.schema("app").from("profiles");
-
-  const profileQuery = supabaseUserId
-    ? baseQuery.eq("user_id", supabaseUserId)
-    : baseQuery.eq("stripe_customer_id", stripeCustomerId);
+    stripeCustomerId: string;
+    stripeSubscriptionId: string | null;
+    status: Stripe.Subscription.Status | string;
+    supabaseUserId?: string | null;
+  }) {
+    const { stripeCustomerId, stripeSubscriptionId, status, supabaseUserId } = opts;
   
-  const { data: profiles, error: fetchError } = await profileQuery
-    .select("user_id")
-    .limit(1);
-
-  if (fetchError) {
-    console.error("Error fetching profile in webhook:", fetchError);
-    return;
+    const activeStatuses = new Set(["active", "trialing"]);
+    const isSubscribed = activeStatuses.has(status);
+  
+    // --- Fetch the profile row we need to update ---
+  
+    let profilesRes;
+    if (supabaseUserId) {
+      profilesRes = await supabaseAdmin
+        .schema("app")
+        .from("profiles")
+        .select("user_id")
+        .eq("user_id", supabaseUserId)
+        .limit(1);
+    } else {
+      profilesRes = await supabaseAdmin
+        .schema("app")
+        .from("profiles")
+        .select("user_id")
+        .eq("stripe_customer_id", stripeCustomerId)
+        .limit(1);
+    }
+  
+    const { data: profiles, error: fetchError } = profilesRes;
+  
+    if (fetchError) {
+      console.error("Error fetching profile in webhook:", fetchError);
+      return;
+    }
+  
+    if (!profiles || profiles.length === 0) {
+      console.warn(
+        "No profile found for customer in webhook",
+        stripeCustomerId,
+        supabaseUserId
+      );
+      return;
+    }
+  
+    const userId = profiles[0].user_id;
+  
+    // --- Update subscription fields in app.profiles ---
+  
+    const { error: updateError } = await supabaseAdmin
+      .schema("app")
+      .from("profiles")
+      .update({
+        stripe_customer_id: stripeCustomerId,
+        stripe_subscription_id: stripeSubscriptionId,
+        stripe_subscription_status: status,
+        is_subscribed: isSubscribed,
+      })
+      .eq("user_id", userId);
+  
+    if (updateError) {
+      console.error("Error updating profile subscription status:", updateError);
+    }
   }
-
-  if (!profiles || profiles.length === 0) {
-    console.warn(
-      "No profile found for customer in webhook",
-      stripeCustomerId,
-      supabaseUserId
-    );
-    return;
-  }
-
-  const userId = profiles[0].user_id;
-
-  const { error: updateError } = await supabaseAdmin
-    .schema("app")
-    .from("profiles")
-    .update({
-      stripe_customer_id: stripeCustomerId,
-      stripe_subscription_id: stripeSubscriptionId,
-      stripe_subscription_status: status,
-      is_subscribed: isSubscribed,
-    })
-    .eq("user_id", userId);
-
-  if (updateError) {
-    console.error("Error updating profile subscription status:", updateError);
-  }
-}
+  
 
 export async function POST(req: NextRequest) {
   const headersList = headers();
