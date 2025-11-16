@@ -1,4 +1,4 @@
-from auth import AuthManager, OTPDialog
+from auth import AuthManager
 from hotkeys import install_global_hotkey, uninstall_global_hotkey
 import config
 from ocr import ocr
@@ -173,26 +173,6 @@ class Tray(QSystemTrayIcon):
         except Exception as e:
             print(f"Error handling deep link: {e}")
     
-    def show_auth_dialog(self):
-        dialog = OTPDialog()
-        dialog.set_supabase_client(self.auth_manager.supabase)
-        
-        if dialog.exec() == QDialog.DialogCode.Accepted:
-            # Get the authenticated user
-            response = self.auth_manager.supabase.auth.get_user()
-            if response:
-                self.auth_manager.user = response.user
-                self.auth_manager.session = self.auth_manager.supabase.auth.get_session()
-                self.auth_manager.save_session()
-                
-                self.showMessage("Scaffold", f"Signed in as {self.auth_manager.user.email}")
-                self.update_menu_auth_state()
-            else:
-                self.showMessage("Scaffold", "Authentication failed")
-        else:
-            if not self.auth_manager.is_authenticated():
-                self.showMessage("Scaffold", "Authentication required to use Scaffold")
-  
     def update_menu_auth_state(self):
         """Update menu items based on auth state"""
         if self.auth_manager.is_authenticated():
