@@ -221,7 +221,7 @@ class Tray(QSystemTrayIcon):
         # Sign out action (hidden by default)
         self.signout_action = QAction("Sign out")
         self.signout_action.triggered.connect(self.sign_out)
-        self.signout_action.setVisible(False)
+        #self.signout_action.setVisible(False)
         menu.addAction(self.signout_action)
         
         menu.addSeparator()
