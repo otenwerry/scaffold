@@ -275,6 +275,7 @@ class Tray(QSystemTrayIcon):
     
     def open_login_page(self):
         self.auth_manager.open_login_page()
+        QTimer.singleShot(1000, self.quit_app) #wait 1 second to close the app
     
     def sign_out(self):
         self.auth_manager.sign_out()
