@@ -138,9 +138,10 @@ export default function SubscribePage() {
 
       // Redirect to Stripe Checkout
       window.location.href = json.url as string;
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      setError(err.message ?? "Something went wrong starting checkout.");
+      const message = err instanceof Error ? err.message : "Something went wrong starting checkout.";
+      setError(message);
     } finally {
       setCheckoutLoading(false);
     }
