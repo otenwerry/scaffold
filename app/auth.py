@@ -251,8 +251,8 @@ class AuthManager:
 
     def open_login_page(self):
         """Open the web login page in the default browser."""
-        url = "http://localhost:3000/login"
-        #url = "https://scaffoldvoice.com/login"
+        #url = "http://localhost:3000/login" for local development
+        url = "https://scaffoldvoice.com/login"
         try:
             webbrowser.open(url)
         except Exception as e:
