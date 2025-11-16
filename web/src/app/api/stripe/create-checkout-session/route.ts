@@ -64,10 +64,10 @@ export async function POST(req: NextRequest) {
         if ((customer as Stripe.DeletedCustomer).deleted) {
           stripeCustomerId = null;
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
         // Typical stale ID / wrong environment case:
         // Stripe throws a "resource_missing" error → treat as if we had no customer
-        if (err && typeof err === "object" && (err as any).code === "resource_missing") {
+        if (err && typeof err === "object" && (err as { code?: string }).code === "resource_missing") {
           stripeCustomerId = null;
         } else {
           // Something else is wrong (network, auth, etc.) → rethrow
