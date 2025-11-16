@@ -85,10 +85,10 @@ export async function POST(req: NextRequest) {
   try {
     const rawBody = await req.text(); // IMPORTANT: raw text, not JSON
     event = stripe.webhooks.constructEvent(rawBody, sig, webhookSecret);
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("Error verifying Stripe webhook signature:", err);
     return NextResponse.json(
-      { error: `Webhook Error: ${err.message}` },
+      { error: `Webhook Error: ${err instanceof Error ? err.message : "Unknown error"}` },
       { status: 400 }
     );
   }
