@@ -101,7 +101,7 @@ export default function LogIn() {
     content = (
       <div className="flex flex-col gap-4">
         <p className="text-base text-gray-800">
-          Sign in with Google to connect your Scaffold macOS app.
+          Sign in with Google to connect to Scaffold.
         </p>
         <button
           onClick={handleLoginWithGoogle}
@@ -109,10 +109,6 @@ export default function LogIn() {
         >
           Log in with Google
         </button>
-        <p className="text-xs text-gray-500 max-w-md">
-          We’ll open a Google sign-in flow. When you’re done, you’ll come back
-          here and can reopen the macOS app with your new account.
-        </p>
       </div>
     );
   } else {
@@ -133,7 +129,7 @@ export default function LogIn() {
           href={deepLink}
           className="inline-flex items-center justify-center px-4 py-2 rounded-md border text-sm font-medium hover:bg-gray-50 transition text-center"
         >
-          Reopen Scaffold macOS app
+          Reopen Scaffold
         </a>
         <p className="text-xs text-gray-500 max-w-md">
           If nothing happens when you click the button, make sure the Scaffold
