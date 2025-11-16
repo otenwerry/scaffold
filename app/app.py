@@ -43,7 +43,7 @@ import certifi
 from datetime import datetime
 from queue import Queue, Empty
 import json
-
+import urllib.parse
 
 
 
@@ -55,12 +55,12 @@ class Tray(QSystemTrayIcon):
     show_error = Signal(str)
     audio_started = Signal()
     realtime_ready = Signal()
-    def __init__(self, app):
+    def __init__(self, app, deep_link_url: Optional[str] = None):
         super().__init__()
         self.app = app
         self.auth_manager = AuthManager()
-        if not self.auth_manager.is_authenticated():
-            QTimer.singleShot(500, self.show_auth_dialog)
+        if deep_link_url:
+            self.handle_deep_link(deep_link_url)
         self.setup_icon()
         #self.setup_tesseract()
         self.is_recording = False
@@ -122,6 +122,11 @@ class Tray(QSystemTrayIcon):
         # Show system tray
         self.show()
         print("Tray: Shown")
+
+        if self.auth_manager.is_authenticated():
+            print("f Signed in as {self.auth_manager.user.email}")
+        else:
+            print("App is running. Please sign in to continue.")
         install_global_hotkey(lambda: self.toggle_ask.emit())
 
 
@@ -136,6 +141,38 @@ class Tray(QSystemTrayIcon):
         else:
             print("App is running. Please sign in to continue.")
 
+    def handle_deep_link(self, url: str):
+        try:
+            parsed = urllib.parse.urlparse(url)
+            qs = urllib.parse.parse_qs(parsed.query)
+            print(f"Deep link query string: {qs}")
+            access_token = qs.get("access_token", [None])[0]
+            refresh_token = qs.get("refresh_token", [None])[0]
+            print(f"Tray: calling login_from_tokens")
+            success = self.auth_manager.login_from_tokens(access_token, refresh_token)
+            print(f"Tray: login_from_tokens result: {success}")
+
+            if not access_token or not refresh_token:
+                print("Deep link missing access_token or refresh_token")
+                return
+
+            success = self.auth_manager.login_from_tokens(access_token, refresh_token)
+            if success:
+                # If the menu is already created, update it; otherwise create_menu will.
+                try:
+                    self.update_menu_auth_state()
+                    self.showMessage(
+                        "Scaffold",
+                        f"Signed in as {self.auth_manager.user.email}",
+                    )
+                except Exception:
+                    # Menu may not be built yet; it's fine, we'll update later.
+                    pass
+            else:
+                print("Deep link login_from_tokens failed")
+        except Exception as e:
+            print(f"Error handling deep link: {e}")
+    
     def show_auth_dialog(self):
         dialog = OTPDialog()
         dialog.set_supabase_client(self.auth_manager.supabase)
@@ -211,10 +248,17 @@ class Tray(QSystemTrayIcon):
         self.settings_action.triggered.connect(self.show_settings)
         menu.addAction(self.settings_action)
 
-        # Sign out action (hidden)
+        menu.addSeparator()
+
+        # Login/Sign in action
+        self.login_action = QAction("Sign In...")
+        self.login_action.triggered.connect(self.open_login_page)
+        menu.addAction(self.login_action)
+
+        # Sign out action (hidden by default)
         self.signout_action = QAction("Sign out")
         self.signout_action.triggered.connect(self.sign_out)
-        self.signout_action.setVisible(False)
+        #self.signout_action.setVisible(False)
         menu.addAction(self.signout_action)
         
         menu.addSeparator()
@@ -225,6 +269,12 @@ class Tray(QSystemTrayIcon):
         menu.addAction(self.quit_action)
         
         self.setContextMenu(menu)
+        
+        # Set initial auth state
+        self.update_menu_auth_state()
+    
+    def open_login_page(self):
+        self.auth_manager.open_login_page()
     
     def sign_out(self):
         self.auth_manager.sign_out()
@@ -307,7 +357,7 @@ class Tray(QSystemTrayIcon):
         print(f"[{config.timestamp()}] UI: Ask button clicked")
         print(f"UI: Current state - is_recording={self.is_recording}, session_active={self._rt_session_active}, should_send={self._rt_should_send_audio}")
         if not self.auth_manager.is_authenticated():
-            self.show_auth_dialog()
+            self.open_login_page()
             return
         #preflight quota check
         try:
@@ -810,12 +860,20 @@ class Tray(QSystemTrayIcon):
 
 def main():
     print("Main: Launching Tray app")
-    app = QApplication(sys.argv)
+    deep_link_url = None
+    clean_argv = [sys.argv[0]]
+    for arg in sys.argv[1:]:
+        if arg.startswith("scaffold://"):
+            deep_link_url = arg
+        else:
+            clean_argv.append(arg)
+    print(f"Main: Deep link URL: {deep_link_url}")
+    app = QApplication(clean_argv)
     with open(config.asset_path("styles/base.qss"), "r") as f:
         app.setStyleSheet(f.read())
     app.setQuitOnLastWindowClosed(False) #keep running in tray
     
-    tray = Tray(app)
+    tray = Tray(app, deep_link_url)
     print("Main: Starting run loop")
     #app.run()
     sys.exit(app.exec())

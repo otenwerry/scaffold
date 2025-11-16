@@ -45,7 +45,7 @@ exe = EXE(
     runtime_tmpdir=None,
     console=False,  # False = no terminal window
     disable_windowed_traceback=False,
-    argv_emulation=False,
+    argv_emulation=True,
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
@@ -74,5 +74,11 @@ app = BUNDLE(
         'CFBundleVersion': '1', # need to increment this every time you ship the same bundle id
         'NSMicrophoneUsageDescription': 'Scaffold needs microphone access to record your questions.',
         'NSScreenCaptureUsageDescription': 'Scaffold needs screen access to see what you are asking about.',
+        'CFBundleURLTypes': [
+            {
+                'CFBundleURLName': 'Scaffold Auth Callback',
+                'CFBundleURLSchemes': ['scaffold'],
+            }
+        ],
     },
 )
