@@ -178,8 +178,7 @@ export default function SubscribePage() {
           You’re currently on the <strong>free plan</strong>.
         </p>
         <ul className="list-disc list-inside text-sm text-gray-700">
-          <li>Up to 5 voice calls total (lifetime free tier).</li>
-          <li>Perfect for trying out Scaffold on your Mac.</li>
+          <li>Up to 5 voice calls total.</li>
         </ul>
         {typeof profile.free_calls_used === "number" && (
           <p className="text-sm text-gray-700">
