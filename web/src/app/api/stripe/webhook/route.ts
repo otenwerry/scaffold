@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { headers } from "next/headers";
 import Stripe from "stripe";
 import { createClient } from "@supabase/supabase-js";
 
@@ -97,10 +96,10 @@ async function updateSubscriptionForCustomer(opts: {
     try {
       const rawBody = await req.text(); // IMPORTANT: raw text, not JSON
       event = stripe.webhooks.constructEvent(rawBody, sig, webhookSecret);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Error verifying Stripe webhook signature:", err);
       return NextResponse.json(
-        { error: `Webhook Error: ${err.message}` },
+        { error: `Webhook Error: ${err instanceof Error ? err.message : "Unknown error"}` },
         { status: 400 }
       );
     }
