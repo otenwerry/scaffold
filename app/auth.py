@@ -4,6 +4,7 @@ from supabase import create_client, Client
 import json
 import keyring
 import urllib.parse
+import webbrowser
 SUPABASE_URL = "https://giohlugbdruxxlgzdtlj.supabase.co"
 SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdpb2hsdWdiZHJ1eHhsZ3pkdGxqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY0MTY4MzUsImV4cCI6MjA3MTk5MjgzNX0.wJVWrwyo3RLPyrM4D0867GhjenY1Z-lwaZFN4GUQloM"
 
@@ -245,7 +246,8 @@ class AuthManager:
 
     def open_login_page(self):
         """Open the web login page in the default browser."""
-        url = "https://localhost:3000/login"
+        url = "http://localhost:3000/login"
+        #url = "https://scaffoldvoice.com/login"
         try:
             webbrowser.open(url)
         except Exception as e:
