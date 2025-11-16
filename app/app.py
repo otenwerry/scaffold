@@ -145,8 +145,12 @@ class Tray(QSystemTrayIcon):
         try:
             parsed = urllib.parse.urlparse(url)
             qs = urllib.parse.parse_qs(parsed.query)
+            print(f"Deep link query string: {qs}")
             access_token = qs.get("access_token", [None])[0]
             refresh_token = qs.get("refresh_token", [None])[0]
+            print(f"Tray: calling login_from_tokens")
+            success = self.auth_manager.login_from_tokens(access_token, refresh_token)
+            print(f"Tray: login_from_tokens result: {success}")
 
             if not access_token or not refresh_token:
                 print("Deep link missing access_token or refresh_token")
@@ -863,6 +867,7 @@ def main():
             deep_link_url = arg
         else:
             clean_argv.append(arg)
+    print(f"Main: Deep link URL: {deep_link_url}")
     app = QApplication(clean_argv)
     with open(config.asset_path("styles/base.qss"), "r") as f:
         app.setStyleSheet(f.read())

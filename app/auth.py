@@ -227,6 +227,11 @@ class AuthManager:
             if not access_token or not refresh_token:
                 print("login_from_tokens: missing token(s)")
                 return False
+            print(
+                "login_from_tokens: starting,"
+                f"access_token: {access_token},"
+                f"refresh_token: {refresh_token}"
+            )
 
             try:
                 response = self.supabase.auth.set_session(access_token, refresh_token)
