@@ -80,30 +80,30 @@ async function updateSubscriptionForCustomer(opts: {
   }
   
 
-export async function POST(req: NextRequest) {
-  const headersList = headers();
-  const sig = headersList.get("stripe-signature");
-  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
-
-  if (!sig || !webhookSecret) {
-    return NextResponse.json(
-      { error: "Missing webhook configuration" },
-      { status: 400 }
-    );
-  }
-
-  let event: Stripe.Event;
-
-  try {
-    const rawBody = await req.text(); // IMPORTANT: raw text, not JSON
-    event = stripe.webhooks.constructEvent(rawBody, sig, webhookSecret);
-  } catch (err: unknown) {
-    console.error("Error verifying Stripe webhook signature:", err);
-    return NextResponse.json(
-      { error: `Webhook Error: ${err instanceof Error ? err.message : "Unknown error"}` },
-      { status: 400 }
-    );
-  }
+  export async function POST(req: NextRequest) {
+    // Use headers from the request directly
+    const sig = req.headers.get("stripe-signature");
+    const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+  
+    if (!sig || !webhookSecret) {
+      return NextResponse.json(
+        { error: "Missing webhook configuration" },
+        { status: 400 }
+      );
+    }
+  
+    let event: Stripe.Event;
+  
+    try {
+      const rawBody = await req.text(); // IMPORTANT: raw text, not JSON
+      event = stripe.webhooks.constructEvent(rawBody, sig, webhookSecret);
+    } catch (err: any) {
+      console.error("Error verifying Stripe webhook signature:", err);
+      return NextResponse.json(
+        { error: `Webhook Error: ${err.message}` },
+        { status: 400 }
+      );
+    }
 
   try {
     switch (event.type) {
