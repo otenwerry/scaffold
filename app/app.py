@@ -352,7 +352,16 @@ class Tray(QSystemTrayIcon):
                 limit = row.get('limit')
                 if limit == 5 or (isinstance(limit, (int, float)) and float(limit) <= 5.01):
                     # Free tier is out of calls
-                    self.show_error.emit("You're out of free usage. Subscribe to continue.")
+                    dlg = QMessageBox()
+                    dlg.setIcon(QMessageBox.Icon.Information)
+                    dlg.setWindowTitle("Scaffold")
+                    dlg.setText("You're out of free usage.")
+                    dlg.setInformativeText("Subscribe to continue using Scaffold.")
+                    subscribe_btn = dlg.addButton("Subscribe", QMessageBox.ButtonRole.AcceptRole)
+                    cancel_btn = dlg.addButton("Cancel", QMessageBox.ButtonRole.RejectRole)
+                    dlg.exec()
+                    if dlg.clickedButton() == subscribe_btn:
+                        self.auth_manager.open_subscription_page()
                 else:
                     # Subscribed user hit monthly cap
                     self.show_error.emit("You've hit your monthly usage limit.")

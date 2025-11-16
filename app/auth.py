@@ -120,3 +120,10 @@ class AuthManager:
             webbrowser.open(url)
         except Exception as e:
             print(f"Error opening login page: {e}")
+
+    def open_subscribe_page(self):
+        url = "https://scaffoldvoice.com/subscribe"
+        try:
+            webbrowser.open(url)
+        except Exception as e:
+            print(f"Error opening subscribe page: {e}")
