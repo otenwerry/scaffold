@@ -3,6 +3,7 @@ from PySide6.QtWidgets import (QDialog, QVBoxLayout, QWidget,
 from supabase import create_client, Client
 import json
 import keyring
+import urllib.parse
 SUPABASE_URL = "https://giohlugbdruxxlgzdtlj.supabase.co"
 SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdpb2hsdWdiZHJ1eHhsZ3pkdGxqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY0MTY4MzUsImV4cCI6MjA3MTk5MjgzNX0.wJVWrwyo3RLPyrM4D0867GhjenY1Z-lwaZFN4GUQloM"
 
@@ -220,3 +221,32 @@ class AuthManager:
         except Exception as e:
             print(f"Error signing out: {e}")
     
+    def login_from_tokens(self, access_token: str, refresh_token: str) -> bool:
+            """Set Supabase session from access/refresh tokens and persist it."""
+            if not access_token or not refresh_token:
+                print("login_from_tokens: missing token(s)")
+                return False
+
+            try:
+                response = self.supabase.auth.set_session(access_token, refresh_token)
+            except Exception as e:
+                print(f"login_from_tokens: error setting session: {e}")
+                return False
+
+            if response and getattr(response, "user", None):
+                self.user = response.user
+                self.session = response.session
+                self.save_session()
+                print(f"login_from_tokens: logged in as {self.user.email}")
+                return True
+
+            print("login_from_tokens: set_session returned no user")
+            return False
+
+    def open_login_page(self):
+        """Open the web login page in the default browser."""
+        url = "https://localhost:3000/login"
+        try:
+            webbrowser.open(url)
+        except Exception as e:
+            print(f"Error opening login page: {e}")
