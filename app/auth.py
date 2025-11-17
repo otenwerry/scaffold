@@ -90,11 +90,6 @@ class AuthManager:
             if not access_token or not refresh_token:
                 print("login_from_tokens: missing token(s)")
                 return False
-            print(
-                "login_from_tokens: starting,"
-                f"access_token: {access_token},"
-                f"refresh_token: {refresh_token}"
-            )
 
             try:
                 response = self.supabase.auth.set_session(access_token, refresh_token)
@@ -120,3 +115,10 @@ class AuthManager:
             webbrowser.open(url)
         except Exception as e:
             print(f"Error opening login page: {e}")
+
+    def open_subscribe_page(self):
+        url = "https://scaffoldvoice.com/subscribe"
+        try:
+            webbrowser.open(url)
+        except Exception as e:
+            print(f"Error opening subscribe page: {e}")
