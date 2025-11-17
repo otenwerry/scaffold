@@ -226,11 +226,6 @@ export default function SubscribePage() {
         <ul className="list-disc list-inside text-sm text-gray-700">
           <li>Up to 5 voice calls total.</li>
         </ul>
-        {typeof profile.free_calls_used === "number" && (
-          <p className="text-sm text-gray-700">
-            You’ve used <strong>{profile.free_calls_used}</strong> free calls so far.
-          </p>
-        )}
         <div className="mt-2">
           <p className="text-base text-gray-900 font-semibold mb-1">
             Upgrade to Pro
