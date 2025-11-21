@@ -16,3 +16,5 @@ __pycache__/
 *.app
 *.zip
 *.dmg
+
+*/tools/sparkle

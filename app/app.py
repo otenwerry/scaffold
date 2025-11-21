@@ -3,6 +3,7 @@ from hotkeys import install_global_hotkey, uninstall_global_hotkey
 import config
 from ocr import ocr
 from ui.settings import SettingsDialog
+from updater import SparkleManager
 
 import sys
 import os
@@ -59,6 +60,7 @@ class Tray(QSystemTrayIcon):
         super().__init__()
         self.app = app
         self.auth_manager = AuthManager()
+        self.sparkle = SparkleManager()
         if deep_link_url:
             self.handle_deep_link(deep_link_url)
         self.setup_icon()
@@ -111,13 +113,6 @@ class Tray(QSystemTrayIcon):
         self.animation_timer.timeout.connect(self._tick_thinking_icon)
         self._settings_dialog = None 
         self.realtime_ready.connect(self._start_recording_realtime)
-
-        # Set up global hotkey 
-        """self._ghk = pk.GlobalHotKeys({
-            '<f9>': lambda: self.toggle_ask.emit()
-        })
-        self._ghk.daemon = True
-        self._ghk.start()"""
         
         # Show system tray
         self.show()
@@ -241,6 +236,13 @@ class Tray(QSystemTrayIcon):
         #self.signout_action.setVisible(False)
         menu.addAction(self.signout_action)
         
+        menu.addSeparator()
+
+        # Check for updates action
+        self.update_action = QAction("Check for Updates...")
+        self.update_action.triggered.connect(self.sparkle.check_for_updates)
+        menu.addAction(self.update_action)
+
         menu.addSeparator()
         
         # Quit action

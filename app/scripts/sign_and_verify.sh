@@ -9,10 +9,63 @@ SIGN="Developer ID Application: Caroline Smyth (AF38K5WH45)"
 
 # Sign nested code first (frameworks, dylibs, .so, helpers)
 # (Exclude the main executable; sign it separately with entitlements)
+SPARKLE="$APP/Contents/Frameworks/Sparkle.framework"
+if [ -d "$SPARKLE" ]; then
+  # --- normalize Sparkle.framework root layout (symlinks) ---
+  if [ -f "$SPARKLE/Autoupdate" ] && [ ! -L "$SPARKLE/Autoupdate" ]; then
+    echo "Fixing Autoupdate to be a symlink..."
+    rm -f "$SPARKLE/Autoupdate"
+    ln -s "Versions/Current/Autoupdate" "$SPARKLE/Autoupdate"
+  fi
+  rm -f "$SPARKLE/Sparkle" "$SPARKLE/Resources"
+  ln -s "Versions/Current/Sparkle"   "$SPARKLE/Sparkle"
+  ln -s "Versions/Current/Resources" "$SPARKLE/Resources"
+
+  echo "Cleaning Sparkle xattrs..."
+  /usr/bin/xattr -cr "$SPARKLE"
+  /usr/bin/dot_clean -m "$SPARKLE" 2>/dev/null || true
+
+  echo "Signing Sparkle inner items..."
+  for xpc in "$SPARKLE"/Versions/*/XPCServices/*.xpc; do
+    [ -d "$xpc" ] || continue
+    echo "  Signing XPC: $xpc"
+    /usr/bin/codesign --force --options runtime --timestamp \
+      --preserve-metadata=entitlements \
+      -s "$SIGN" "$xpc"
+  done
+
+  for item in \
+      "$SPARKLE"/Versions/*/Autoupdate \
+      "$SPARKLE"/Versions/*/Updater.app; do
+    [ -e "$item" ] || continue
+    echo "  Signing Sparkle helper: $item"
+    /usr/bin/codesign --force --options runtime --timestamp -s "$SIGN" "$item"
+  done
+
+  echo "Signing Sparkle.framework version directory..."
+  /usr/bin/codesign --force --options runtime --timestamp -s "$SIGN" \
+    "$SPARKLE/Versions/Current"
+fi
+echo "Signing other embedded frameworks (Qt/PySide)..."
+while IFS= read -r -d '' fw; do
+  # Skip Sparkle (already handled)
+  if [[ "$fw" == *"/Sparkle.framework" ]]; then
+    continue
+  fi
+
+  target="$fw"
+  if [ -d "$fw/Versions/Current" ]; then
+    target="$fw/Versions/Current"
+  fi
+
+  echo "  Signing framework: $target"
+  /usr/bin/codesign --force --options runtime --timestamp -s "$SIGN" "$target"
+done < <(/usr/bin/find "$APP/Contents" -type d -name "*.framework" -print0)
+
 while IFS= read -r -d '' f; do
   echo "Signing nested: $f"
   /usr/bin/codesign --force --options runtime --timestamp -s "$SIGN" "$f"
-done < <(/usr/bin/find "$APP/Contents" -type f \( -name "*.dylib" -o -name "*.so" -o -path "*/Frameworks/*" -o -path "*/MacOS/*" \) ! -path "$APP_BIN" -print0)
+done < <(/usr/bin/find "$APP/Contents" -type f \( -name "*.dylib" -o -name "*.so" -o -path "*/MacOS/*" \) ! -path "$APP_BIN" -print0)
 # Sign main executable with entitlements
 echo "Signing main executable: $APP_BIN"
 /usr/bin/codesign --force --options runtime --timestamp --entitlements "$ENT" -s "$SIGN" "$APP_BIN"
