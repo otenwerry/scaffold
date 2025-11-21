@@ -9,6 +9,11 @@ SIGN="Developer ID Application: Caroline Smyth (AF38K5WH45)"
 
 # Sign nested code first (frameworks, dylibs, .so, helpers)
 # (Exclude the main executable; sign it separately with entitlements)
+FRAMEWORK_PATH="$APP/Contents/Frameworks/Sparkle.framework"
+if [ -d "$FRAMEWORK_PATH" ]; then
+  echo "Signing Sparkle framework..."
+  /usr/bin/codesign --force --options runtime --timestamp --deep -s "$SIGN" "$FRAMEWORK_PATH"
+fi
 while IFS= read -r -d '' f; do
   echo "Signing nested: $f"
   /usr/bin/codesign --force --options runtime --timestamp -s "$SIGN" "$f"

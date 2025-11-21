@@ -1,4 +1,6 @@
-binaries = []
+binaries = [
+    ('../frameworks/Sparkle.framework', 'Frameworks/Sparkle.framework')
+]
 datas = [
         ('../logos/icon.png', 'logos'),
         ('../logos/gray.png', 'logos'),
@@ -80,5 +82,8 @@ app = BUNDLE(
                 'CFBundleURLSchemes': ['scaffold'],
             }
         ],
+        'SUPublicEDKey': 'X8Kqb9r+krRf40hRCgRtWoTyUUa6uhD3+Y1u5TdZF4o=',
+        'SUFeedURL': 'PLACEHOLDER',
+        'SUEnableAutomaticChecks': True,
     },
 )
