@@ -1,5 +1,5 @@
 binaries = [
-    ('../frameworks/Sparkle.framework', 'Frameworks/Sparkle.framework')
+    ('../frameworks/Sparkle.framework', 'Sparkle.framework')
 ]
 datas = [
         ('../logos/icon.png', 'logos'),

@@ -11,13 +11,30 @@ SIGN="Developer ID Application: Caroline Smyth (AF38K5WH45)"
 # (Exclude the main executable; sign it separately with entitlements)
 FRAMEWORK_PATH="$APP/Contents/Frameworks/Sparkle.framework"
 if [ -d "$FRAMEWORK_PATH" ]; then
-  echo "Signing Sparkle framework..."
-  /usr/bin/codesign --force --options runtime --timestamp --deep -s "$SIGN" "$FRAMEWORK_PATH"
+  echo "Signing Sparkle inner items..."
+  # XPC services (preserve entitlements if present)
+  for xpc in "$SPARKLE"/Versions/*/XPCServices/*.xpc; do
+    [ -d "$xpc" ] || continue
+    echo "  Signing XPC: $xpc"
+    /usr/bin/codesign --force --options runtime --timestamp \
+      --preserve-metadata=entitlements \
+      -s "$SIGN" "$xpc"
+  done
+  # Autoupdate + Updater.app if they exist
+  for item in \
+      "$SPARKLE"/Versions/*/Autoupdate \
+      "$SPARKLE"/Versions/*/Updater.app; do
+    [ -e "$item" ] || continue
+    echo "  Signing Sparkle helper: $item"
+    /usr/bin/codesign --force --options runtime --timestamp -s "$SIGN" "$item"
+  done
+  echo "Signing Sparkle.framework bundle..."
+  /usr/bin/codesign --force --options runtime --timestamp -s "$SIGN" "$SPARKLE"
 fi
 while IFS= read -r -d '' f; do
   echo "Signing nested: $f"
   /usr/bin/codesign --force --options runtime --timestamp -s "$SIGN" "$f"
-done < <(/usr/bin/find "$APP/Contents" -type f \( -name "*.dylib" -o -name "*.so" -o -path "*/Frameworks/*" -o -path "*/MacOS/*" \) ! -path "$APP_BIN" -print0)
+done < <(/usr/bin/find "$APP/Contents" -type f \( -name "*.dylib" -o -name "*.so" -o -path "*/MacOS/*" \) ! -path "$APP_BIN" -print0)
 # Sign main executable with entitlements
 echo "Signing main executable: $APP_BIN"
 /usr/bin/codesign --force --options runtime --timestamp --entitlements "$ENT" -s "$SIGN" "$APP_BIN"
