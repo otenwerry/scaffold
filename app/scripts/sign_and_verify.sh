@@ -9,8 +9,11 @@ SIGN="Developer ID Application: Caroline Smyth (AF38K5WH45)"
 
 # Sign nested code first (frameworks, dylibs, .so, helpers)
 # (Exclude the main executable; sign it separately with entitlements)
-FRAMEWORK_PATH="$APP/Contents/Frameworks/Sparkle.framework"
-if [ -d "$FRAMEWORK_PATH" ]; then
+SPARKLE="$APP/Contents/Frameworks/Sparkle.framework"
+if [ -d "$SPARKLE" ]; then
+  echo "Cleaning Sparkle xattrs..."
+  /usr/bin/xattr -cr "$SPARKLE"
+  /usr/bin/dot_clean -m "$SPARKLE" 2>/dev/null || true
   echo "Signing Sparkle inner items..."
   # XPC services (preserve entitlements if present)
   for xpc in "$SPARKLE"/Versions/*/XPCServices/*.xpc; do
