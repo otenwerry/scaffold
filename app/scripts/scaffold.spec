@@ -83,7 +83,7 @@ app = BUNDLE(
             }
         ],
         'SUPublicEDKey': 'X8Kqb9r+krRf40hRCgRtWoTyUUa6uhD3+Y1u5TdZF4o=',
-        'SUFeedURL': 'PLACEHOLDER',
+        'SUFeedURL': 'https://updates.scaffoldvoice.com/appcast.xml',
         'SUEnableAutomaticChecks': True,
     },
 )
