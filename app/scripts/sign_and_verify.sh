@@ -17,9 +17,10 @@ if [ -d "$SPARKLE" ]; then
     rm -f "$SPARKLE/Autoupdate"
     ln -s "Versions/Current/Autoupdate" "$SPARKLE/Autoupdate"
   fi
-  rm -f "$SPARKLE/Sparkle" "$SPARKLE/Resources"
-  ln -s "Versions/Current/Sparkle"   "$SPARKLE/Sparkle"
+  rm -f "$SPARKLE/Sparkle" "$SPARKLE/Resources" "$SPARKLE/Updater.app"
+  ln -s "Versions/Current/Sparkle"    "$SPARKLE/Sparkle"
   ln -s "Versions/Current/Resources" "$SPARKLE/Resources"
+  ln -s "Versions/Current/Updater.app" "$SPARKLE/Updater.app"
 
   echo "Cleaning Sparkle xattrs..."
   /usr/bin/xattr -cr "$SPARKLE"
