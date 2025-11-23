@@ -17,7 +17,7 @@ export default function GetStarted() {
           <CardTitle className="text-4xl font-bold text-gray-900 leading-relaxed text-center">Thanks for trying out Scaffold!</CardTitle>
           <CardContent className="text-lg md:text-lg text-gray-800 max-w-3xl mx-auto leading-relaxed text-left">
             <strong>1.</strong><Button className="futuristic-button text-white text-lg mr-1 ml-1 px-2 py-1 h-auto max-w-md text-center">
-             <a href="https://github.com/otenwerry/scaffold/releases/download/beta1.0.4/Scaffold.dmg" download>
+             <a href="https://github.com/otenwerry/scaffold/releases/download/beta1.0.10/Scaffold.dmg" download>
               Download
             </a>
           </Button> the latest version here<br /> 
