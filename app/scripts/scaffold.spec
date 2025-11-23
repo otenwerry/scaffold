@@ -72,8 +72,8 @@ app = BUNDLE(
     bundle_identifier='com.scaffoldvoice.scaffold-beta',
     info_plist={
         'NSHighResolutionCapable': 'True',
-        'CFBundleShortVersionString': '1.0.7',
-        'CFBundleVersion': '107', # need to increment this every time you ship the same bundle id
+        'CFBundleShortVersionString': '1.0.8',
+        'CFBundleVersion': '108', # need to increment this every time you ship the same bundle id
         'NSMicrophoneUsageDescription': 'Scaffold needs microphone access to record your questions.',
         'NSScreenCaptureUsageDescription': 'Scaffold needs screen access to see what you are asking about.',
         'CFBundleURLTypes': [

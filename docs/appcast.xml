@@ -3,6 +3,14 @@
     <channel>
         <title>Scaffold</title>
         <item>
+            <title>1.0.8</title>
+            <pubDate>Sat, 22 Nov 2025 20:12:59 -0500</pubDate>
+            <sparkle:version>108</sparkle:version>
+            <sparkle:shortVersionString>1.0.8</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>10.13</sparkle:minimumSystemVersion>
+            <enclosure url="https://updates.scaffoldvoice.com/Scaffold.dmg" length="59516361" type="application/octet-stream" sparkle:edSignature="I1IKnmKZQpNsF9WBq8jhqpEebyaVjRmvSLhcXOw4VBLwH/5/Z2XsLGDmFZBj/KS/Q0rXYn/8VgNqZtRl7tXfCw=="/>
+        </item>
+        <item>
             <title>1.0.7</title>
             <pubDate>Sat, 22 Nov 2025 20:00:03 -0500</pubDate>
             <sparkle:version>107</sparkle:version>
@@ -17,14 +25,6 @@
             <sparkle:shortVersionString>1.0.6</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>10.13</sparkle:minimumSystemVersion>
             <enclosure url="https://github.com/otenwerry/scaffold/releases/download/beta1.0.6/Scaffold.dmg" length="59516316" type="application/octet-stream" sparkle:edSignature="657w+2HkcKG3bg3X62KbwvYPsq53F7CUtQZ7kbDknqSj1mmKu1qDpiSloouqsOliNaZBuaoYLIF8qebD9X5vBg=="/>
-        </item>
-        <item>
-            <title>1.0.5</title>
-            <pubDate>Sat, 22 Nov 2025 17:45:43 -0500</pubDate>
-            <sparkle:version>105</sparkle:version>
-            <sparkle:shortVersionString>1.0.5</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>10.13</sparkle:minimumSystemVersion>
-            <enclosure url="https://github.com/otenwerry/scaffold/releases/download/beta1.0.5/Scaffold.dmg" length="59516982" type="application/octet-stream" sparkle:edSignature="lfkxhQIDkeB2e5kJvwF93xMQxvM+wYQGWrN77qwu8mygsten715N3A7kNQRmrN65QVkZ7wZP/eS6dE8Z8qJhCQ=="/>
         </item>
     </channel>
 </rss>
