@@ -3,33 +3,12 @@ import os
 import sys
 from Foundation import NSObject
 
-class SparkleDelegate(NSObject):
-    def initWithCallback_(self, callback):
-        self = objc.super(SparkleDelegate, self).init()
-        if self is None:
-            return None
-        self.callback = callback
-        return self
-    
-    def updaterDidNotFindUpdate_error_(self, updater, error):
-        msg = "You're up to date."
-        if error is not None:
-            msg = str(error.localizedDescription())
-        if callable(self.callback):
-            self.callback(False, msg)
-    
-    def updater_didFindValidUpdate_(self, updater, item):
-        if callable(self.callback):
-            self.callback(True, None)
-
 class SparkleManager:
     """
     Bridge to the Sparkle 2 Objective-C Framework.
     """
-    def __init__(self, on_result = None):
+    def __init__(self):
         self.updater_controller = None
-        self.delegate = None
-        self.on_result = on_result
         try:
             self._load_sparkle()
             self._init_updater()
@@ -63,13 +42,9 @@ class SparkleManager:
     def _init_updater(self):
         # SPUStandardUpdaterController is the standard entry point for Sparkle 2
         SPUStandardUpdaterController = objc.lookUpClass("SPUStandardUpdaterController")
-
-        if self.on_result:
-            self.delegate = SparkleDelegate.alloc().initWithCallback_(self.on_result)
-        
         # Initialize with default settings (updater: True starts it automatically)
         self.updater_controller = SPUStandardUpdaterController.alloc().initWithStartingUpdater_updaterDelegate_userDriverDelegate_(
-            True, self.delegate, None
+            True, None, None
         )
         print("Sparkle: Updater controller initialized")
 

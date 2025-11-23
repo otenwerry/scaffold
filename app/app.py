@@ -60,10 +60,7 @@ class Tray(QSystemTrayIcon):
         super().__init__()
         self.app = app
         self.auth_manager = AuthManager()
-        def _sparkle_result(has_update, msg):
-            if not has_update:
-                QMessageBox.information(None, "Scaffold", msg or "You're up to date.")
-        self.sparkle = SparkleManager(on_result=_sparkle_result)
+        self.sparkle = SparkleManager()
         if deep_link_url:
             self.handle_deep_link(deep_link_url)
         self.setup_icon()
