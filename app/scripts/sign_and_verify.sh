@@ -39,7 +39,7 @@ if [ -d "$SPARKLE" ]; then
       "$SPARKLE"/Versions/*/Updater.app; do
     [ -e "$item" ] || continue
     echo "  Signing Sparkle helper: $item"
-    /usr/bin/codesign --force --options runtime --timestamp -s "$SIGN" "$item"
+    /usr/bin/codesign --force --options runtime --timestamp --preserve-metadata=entitlements -s "$SIGN" "$item"
   done
 
   echo "Signing Sparkle.framework version directory..."
