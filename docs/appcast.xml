@@ -8,7 +8,7 @@
             <sparkle:version>108</sparkle:version>
             <sparkle:shortVersionString>1.0.8</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>10.13</sparkle:minimumSystemVersion>
-            <enclosure url="https://updates.scaffoldvoice.com/Scaffold.dmg" length="59516361" type="application/octet-stream" sparkle:edSignature="I1IKnmKZQpNsF9WBq8jhqpEebyaVjRmvSLhcXOw4VBLwH/5/Z2XsLGDmFZBj/KS/Q0rXYn/8VgNqZtRl7tXfCw=="/>
+            <enclosure url="https://github.com/otenwerry/scaffold/releases/download/beta1.0.8/Scaffold.dmg" length="59516361" type="application/octet-stream" sparkle:edSignature="I1IKnmKZQpNsF9WBq8jhqpEebyaVjRmvSLhcXOw4VBLwH/5/Z2XsLGDmFZBj/KS/Q0rXYn/8VgNqZtRl7tXfCw=="/>
         </item>
         <item>
             <title>1.0.7</title>
