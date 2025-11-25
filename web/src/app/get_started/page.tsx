@@ -42,23 +42,26 @@ export default function GetStarted() {
             <div className="flex justify-start my-2">
               <Image src='/images/tray1.png' alt="Tray" width={307} height={100} className="rounded-lg w-full md:w-64 h-auto" />
             </div>
-            <strong>5. </strong> To start or stop asking a question, use the shortcut <strong> Option (⌥) + Space </strong>, or click <Image src="/images/w_logo.png" alt="Icon" width={16} height={16} className="inline" /> and press <strong> &lsquo;Start Asking&rsquo; </strong> <br /> 
+            <strong>5. </strong> To start or stop asking a question, use the shortcut <strong> Option (⌥) + Space </strong> or click <Image src="/images/w_logo.png" alt="Icon" width={16} height={16} className="inline" /> and press <strong> &lsquo;Start Asking&rsquo; </strong> <br /> 
             <div className="h-4">
             </div>
             <strong>6. </strong> Once you ask a question, Scaffold will prompt you for: <br />
             
-            <div className="flex flex-row my-2 gap-8">
+            <div className="flex flex-col md:flex-row my-2 gap-8">
             <div className="flex flex-col">
-            <span> Microphone Permissions</span>
-            <Image src="/images/mic1.png" alt="Download" width={250} height={200} className="rounded-lg" />
-            <span className="text-xs text-gray-500 mt-2">Required so Scaffold can hear what you say</span>
+            <span><strong>Microphone Permissions</strong></span>
+            <div className="w-full md:h-48 md:w-auto rounded-lg md:overflow-hidden">
+            <Image src="/images/mic1.png" alt="Microphone permissions" width={250} height={200} className="w-full md:h-48 md:w-auto rounded-lg object-contain" />
+            </div>
+            <span className="text-sm md:text-xs text-gray-500 mt-2 text-left"><strong>Required</strong> so Scaffold can hear what you say</span>
             </div>
             <div className="flex flex-col ">
-            <span>Screen & System Audio Recording Permissions</span>
-            <Image src="/images/sys_perm.png" alt="Drag" width={460} height={200} className="rounded-lg" />
-            <span className="text-xs text-gray-500 mt-2 max-w-md">Optional but highly recommended so Scaffold can see your screen momentarily when you start asking a question. Screenshots aren&apos;t saved</span>
+            <span><strong>Screen & System Audio Recording Permissions</strong></span>
+            <div className="md:h-48 md:w-auto rounded-lg md:overflow-hidden w-full">
+            <Image src="/images/sys_perm.png" alt="Drag" width={460} height={200} className="rounded-lg object-contain" />
             </div>
-          
+            <span className="text-sm md:text-xs text-gray-500 mt-2 max-w-md text-center md:text-left"> <strong>Optional but highly recommended </strong>so Scaffold can see your screen momentarily when you start asking a question. <strong>Screenshots aren&apos;t saved </strong></span>
+            </div>
             </div>
             If you&apos;d rather not let Scaffold see your screen, you can leave the latter turned off &mdash; it&apos;s still useful just as a conversation partner while you have eyes on your work. <br />
           </CardContent>
