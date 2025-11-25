@@ -352,7 +352,7 @@ class Tray(QSystemTrayIcon):
             if not row.get('allowed', False):
                 # Differentiate free vs. subscribed based on the returned limit (5 vs 10.0)
                 limit = row.get('limit')
-                if limit == 5 or (isinstance(limit, (int, float)) and float(limit) <= 5.01):
+                if limit == 50 or (isinstance(limit, (int, float)) and float(limit) <= 50.01):
                     # Free tier is out of calls
                     dlg = QMessageBox()
                     dlg.setIcon(QMessageBox.Icon.Information)
