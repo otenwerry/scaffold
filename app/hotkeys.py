@@ -65,9 +65,9 @@ if _IS_MAC:
     _EVENT_HANDLER_REF = c_void_p()
     _HOTKEY_CB_REF = None  # prevent GC
 
-    def install_global_hotkey(on_fire, vk_code=49, modifiers=(cmdKey | shiftKey)):
+    def install_global_hotkey(on_fire, vk_code=49, modifiers=optionKey):
         """
-        Registers a global hotkey (default: Cmd+Shift+Space).
+        Registers a global hotkey (default: Option+Space).
         """
         if not _IS_MAC:
             print("[Scaffold] Global hotkey skipped (non-macOS)")
@@ -108,7 +108,7 @@ if _IS_MAC:
             print(f"[Scaffold] RegisterEventHotKey failed: {status}")
             return False
 
-        print("[Scaffold] Global hotkey registered: Cmd+Shift+Space")
+        print("[Scaffold] Global hotkey registered: Option+Space")
         return True
 
     def uninstall_global_hotkey():

@@ -101,7 +101,7 @@ export default function LogIn() {
     content = (
       <div className="flex flex-col gap-4">
         <p className="text-base text-gray-800">
-          Sign in with Google to connect to Scaffold.
+          Log in with Google to connect to Scaffold.
         </p>
         <button
           onClick={handleLoginWithGoogle}
@@ -122,7 +122,7 @@ export default function LogIn() {
     content = (
       <div className="flex flex-col gap-4">
         <p className="text-base text-gray-800">
-          You’re signed in as{" "}
+          You’re logged in as{" "}
           <strong>{session.user.email}</strong>.
         </p>
         <a

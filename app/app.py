@@ -119,9 +119,9 @@ class Tray(QSystemTrayIcon):
         print("Tray: Shown")
 
         if self.auth_manager.is_authenticated():
-            print("f Signed in as {self.auth_manager.user.email}")
+            print("f Logged in as {self.auth_manager.user.email}")
         else:
-            print("App is running. Please sign in to continue.")
+            print("App is running. Please log in to continue.")
         install_global_hotkey(lambda: self.toggle_ask.emit())
 
 
@@ -132,9 +132,9 @@ class Tray(QSystemTrayIcon):
         
         # Show initial notification
         if self.auth_manager.is_authenticated():
-            print(f"App is running. Press 'Start Asking' to ask a question. Signed in as {self.auth_manager.user.email}")
+            print(f"App is running. Press 'Start Asking' to ask a question. Logged in as {self.auth_manager.user.email}")
         else:
-            print("App is running. Please sign in to continue.")
+            print("App is running. Please log in to continue.")
 
     def handle_deep_link(self, url: str):
         try:
@@ -158,7 +158,7 @@ class Tray(QSystemTrayIcon):
                     self.update_menu_auth_state()
                     self.showMessage(
                         "Scaffold",
-                        f"Signed in as {self.auth_manager.user.email}",
+                        f"Logged in as {self.auth_manager.user.email}",
                     )
                 except Exception:
                     # Menu may not be built yet; it's fine, we'll update later.
@@ -171,12 +171,12 @@ class Tray(QSystemTrayIcon):
     def update_menu_auth_state(self):
         """Update menu items based on auth state"""
         if self.auth_manager.is_authenticated():
-            self.login_action.setText(f"Signed in as {self.auth_manager.user.email}")
+            self.login_action.setText(f"Logged in as {self.auth_manager.user.email}")
             self.login_action.setEnabled(False)
             self.signout_action.setVisible(True)
             self.ask_action.setEnabled(True)
         else:
-            self.login_action.setText("Sign In...")
+            self.login_action.setText("Log In...")
             self.login_action.setEnabled(True)
             self.signout_action.setVisible(False)
             self.ask_action.setEnabled(False)
@@ -205,7 +205,7 @@ class Tray(QSystemTrayIcon):
         menu = QMenu()
         
         # Ask action (Start/Stop Asking)
-        self.ask_action = QAction("Start Asking")
+        self.ask_action = QAction("Start Asking (Option+Space)")
         self.ask_action.triggered.connect(self.on_ask)
         menu.addAction(self.ask_action)
 
@@ -225,8 +225,8 @@ class Tray(QSystemTrayIcon):
 
         menu.addSeparator()
 
-        # Login/Sign in action
-        self.login_action = QAction("Sign In...")
+        # Login action
+        self.login_action = QAction("Log In...")
         self.login_action.triggered.connect(self.open_login_page)
         menu.addAction(self.login_action)
 
@@ -246,7 +246,7 @@ class Tray(QSystemTrayIcon):
         menu.addSeparator()
         
         # Quit action
-        self.quit_action = QAction("Exit")
+        self.quit_action = QAction("Quit")
         self.quit_action.triggered.connect(self.quit_app)
         menu.addAction(self.quit_action)
         
@@ -262,7 +262,7 @@ class Tray(QSystemTrayIcon):
     def sign_out(self):
         self.auth_manager.sign_out()
         self.update_menu_auth_state()
-        self.showMessage("Scaffold", "Signed out")
+        self.showMessage("Scaffold", "Logged out")
     
     def show_settings(self):
         settings = self._settings_dialog
@@ -395,13 +395,13 @@ class Tray(QSystemTrayIcon):
                 print(f"UI: Set should_send_audio to {self._rt_should_send_audio}")
                 self._start_recording_realtime()
         else:
-            self.ask_action.setText("Start Asking")
+            self.ask_action.setText("Start Asking (Option+Space)")
             print("UI: Exiting asking mode")
             self._stop_recording_and_process()
 
     def _start_recording_realtime(self):
         print(f"[{config.timestamp()}] Recording: Start requested (realtime)")
-        self.ask_action.setText("Stop Asking")
+        self.ask_action.setText("Stop Asking (Option+Space)")
         if self.is_recording:
             print("Recording: Already recording; ignoring start")
             return
@@ -632,7 +632,7 @@ class Tray(QSystemTrayIcon):
                             self._stream = None
                             self.is_recording = False
                             self._rt_should_send_audio = False
-                            self.ask_action.setText("Start Asking")
+                            self.ask_action.setText("Start Asking (Option+Space)")
                             self.update_status.emit("Thinking...")
                             print(f"[{config.timestamp()}] Realtime: Limit reached")
                         elif etype == "error":
